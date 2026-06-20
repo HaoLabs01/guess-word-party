@@ -93,6 +93,7 @@ class FakeElement {
 
 const elements = new Map();
 const selectors = [
+  "#appRoot",
   "#setupScreen",
   "#gameScreen",
   "#refreshButton",
@@ -116,6 +117,8 @@ const selectors = [
   "#motionButton",
   "#motionStatus",
   "#recordStatus",
+  "#layoutModeToggle",
+  "#layoutModeStatus",
   "#countdownOverlay",
   "#countdownNumber",
   "#recordingPlayback",
@@ -256,6 +259,13 @@ const context = {
     clearInterval: (id) => {
       intervals.delete(id);
     },
+    innerWidth: 390,
+    innerHeight: 844,
+    screen: {
+      orientation: {
+        angle: 0,
+      },
+    },
     setInterval: (handler) => {
       const id = nextTimerId;
       nextTimerId += 1;
@@ -285,6 +295,7 @@ const wordsSource = fs.readFileSync(new URL("../words.js", import.meta.url), "ut
 const serverSource = fs.readFileSync(new URL("../server.mjs", import.meta.url), "utf8");
 
 assert.match(html, /src="\.\/words\.js"/, "loads the external word bank before the app");
+assert.match(html, /id="appRoot"/, "renders a stable app root for layout mode classes");
 assert.match(html, /id="setupScreen"/, "renders a setup screen before the game");
 assert.match(html, /id="gameScreen"/, "renders a separate game screen");
 assert.match(html, /id="refreshButton"/, "renders an in-app restart button for standalone Safari");
@@ -312,6 +323,9 @@ assert.match(html, /id="cameraButton"/, "renders a camera permission button");
 assert.match(html, /id="motionButton"/, "renders a motion permission button");
 assert.match(html, /开启动作权限/, "motion permission button names the permission clearly");
 assert.match(html, /id="motionStatus"/, "shows motion permission status");
+assert.match(html, /id="layoutModeToggle"/, "renders a display mode toggle");
+assert.match(html, /id="layoutModeStatus"/, "shows the selected display mode");
+assert.match(html, /横屏：横着拿，屏幕朝向猜词人/, "landscape hint explains the phone posture");
 assert.match(html, /id="countdownOverlay"/, "renders a pre-round countdown overlay");
 assert.match(html, /id="countdownNumber"/, "renders a pre-round countdown number");
 assert.match(html, /id="countdownNumber">5<\/span>/, "pre-round countdown starts at 5");
@@ -346,6 +360,8 @@ assert.doesNotMatch(wordsSource, /TARGET_WORDS_PER_CATEGORY/, "word bank does no
 assert.doesNotMatch(wordsSource, /草原犀牛|热带金丝猴|动物园熊猫/, "word bank excludes forced fake combinations");
 
 assert.match(appSource, /durationSeconds:\s*180/, "default round length is 180 seconds");
+assert.match(appSource, /layoutMode:\s*"portrait"/, "display mode defaults to portrait");
+assert.match(appSource, /function setLayoutMode/, "app exposes display mode switching");
 assert.match(appSource, /countdownStartSeconds\s*=\s*5/, "countdown starts from 5 seconds");
 assert.match(appSource, /nodThreshold\s*=\s*42/, "motion gesture requires a clear peak angle");
 assert.match(appSource, /orientationConfirmSamples\s*=\s*3/, "motion gesture requires three strong samples");
@@ -364,6 +380,9 @@ assert.match(stylesSource, /\.camera-backdrop[\s\S]*opacity:\s*0/, "camera backd
 assert.match(stylesSource, /\.camera-backdrop\.active[\s\S]*opacity:\s*0\.[6-9]/, "active camera backdrop is visible enough for describers to see themselves");
 assert.match(stylesSource, /#cameraPreview[\s\S]*width:\s*100%[\s\S]*height:\s*100%/, "camera preview fills the fullscreen backdrop");
 assert.match(stylesSource, /\.game-screen[\s\S]*pointer-events:\s*auto/, "game controls remain interactive above the camera preview");
+assert.match(stylesSource, /\.app\.layout-landscape \.setup-screen/, "landscape mode has a setup layout branch");
+assert.match(stylesSource, /\.app\.layout-landscape \.game-screen/, "landscape mode has a game layout branch");
+assert.match(stylesSource, /\.app\.layout-landscape \.word-card p/, "landscape mode enlarges the word display");
 assert.match(stylesSource, /\.score-panel,[\s\S]*\.timer[\s\S]*background:\s*rgba\([^)]*0\.[0-3][^)]*\)/, "HUD panels do not hide the camera preview");
 assert.match(stylesSource, /\.status-chip[\s\S]*background:\s*rgba\([^)]*0\.[0-3][^)]*\)/, "status chip does not hide the camera preview");
 assert.match(stylesSource, /\.word-card[\s\S]*background:\s*rgba\([^)]*0\.[0-3][^)]*\)/, "word card lets the camera preview show through during play");
@@ -389,6 +408,16 @@ async function press(key) {
 assert.equal(elements.get("#setupScreen").classList.contains("hidden"), false, "setup screen is visible before starting");
 assert.equal(elements.get("#gameScreen").classList.contains("hidden"), true, "game screen is hidden before starting");
 assert.equal(elements.get("#timer").textContent, 180, "round defaults to 180 seconds");
+assert.equal(elements.get("#layoutModeStatus").textContent, "竖屏", "display mode defaults to portrait");
+assert.equal(elements.get("#appRoot").classList.contains("layout-landscape"), false, "portrait mode does not apply landscape layout");
+assert.equal(elements.get("#layoutModeToggle").children.length, 2, "display mode toggle offers portrait and landscape");
+elements.get("#layoutModeToggle").listeners.click({ target: elements.get("#layoutModeToggle").children[1] });
+assert.equal(elements.get("#layoutModeStatus").textContent, "横屏", "clicking landscape changes the display mode");
+assert.equal(elements.get("#appRoot").classList.contains("layout-landscape"), true, "landscape mode applies the landscape layout class");
+assert.equal(elements.get("#layoutModeToggle").children[1].getAttribute("aria-pressed"), "true", "landscape button is marked selected");
+elements.get("#layoutModeToggle").listeners.click({ target: elements.get("#layoutModeToggle").children[0] });
+assert.equal(elements.get("#layoutModeStatus").textContent, "竖屏", "clicking portrait returns to portrait mode");
+assert.equal(elements.get("#appRoot").classList.contains("layout-landscape"), false, "portrait mode clears the landscape layout class");
 assert.ok(elements.get("#categoryName").textContent.length > 0, "category name is rendered");
 assert.ok(elements.get("#categoryGrid").children.length >= 6, "category grid lists the word groups");
 assert.equal(elements.get("#categoryGrid").children[0].getAttribute("aria-pressed"), "true", "selected category tile is marked");
@@ -432,6 +461,8 @@ assert.equal(elements.get("#cameraButton").getAttribute("aria-checked"), "true",
 
 assert.equal(await press(" "), true, "Space starts the game");
 assert.equal(elements.get("#startButton").disabled, true, "game is running after Space");
+assert.equal(elements.get("#layoutModeToggle").children[0].disabled, true, "display mode is locked after starting");
+assert.equal(elements.get("#layoutModeToggle").children[1].disabled, true, "landscape mode cannot be toggled during countdown");
 assert.equal(elements.get("#setupScreen").classList.contains("hidden"), true, "setup screen hides after starting");
 assert.equal(elements.get("#gameScreen").classList.contains("hidden"), false, "game screen appears after starting");
 assert.equal(elements.get("#timer").textContent, 300, "selected duration is used for the round");
@@ -558,6 +589,8 @@ assert.equal(playback.paused, true, "returning to setup stops recording playback
 assert.equal(playback.currentTime, 0, "returning to setup rewinds recording playback");
 assert.equal(elements.get("#cameraButton").getAttribute("aria-checked"), "true", "recording stays enabled for the next round");
 assert.equal(elements.get("#cameraBackdrop").classList.contains("active"), true, "returning to setup restores the preview for the next recorded round");
+assert.equal(elements.get("#layoutModeToggle").children[0].disabled, false, "display mode unlocks after returning to setup");
+assert.equal(elements.get("#layoutModeToggle").children[1].disabled, false, "landscape mode can be selected before the next round");
 
 lastMediaRequest = null;
 lastRecorder = null;
@@ -592,6 +625,46 @@ windowListeners.deviceorientation?.({ beta: 160 });
 assert.equal(elements.get("#score").textContent, 1, "skewed neutral position can still trigger a deliberate strong nod");
 assert.equal(await press("Escape"), true, "Escape stops the no-recording round");
 assert.equal(lastUpload, null, "disabled recording does not upload anything");
+
+elements.get("#layoutModeToggle").listeners.click({ target: elements.get("#layoutModeToggle").children[1] });
+context.window.screen.orientation.angle = 90;
+context.window.innerWidth = 844;
+context.window.innerHeight = 390;
+assert.equal(elements.get("#layoutModeStatus").textContent, "横屏", "landscape mode is selected before starting a landscape round");
+assert.equal(elements.get("#appRoot").classList.contains("layout-landscape"), true, "landscape round uses landscape layout");
+assert.equal(await press(" "), true, "Space starts a landscape-mode round");
+assert.equal(elements.get("#layoutModeToggle").children[1].disabled, true, "landscape mode stays locked during the round");
+assert.equal(elements.get("#countdownNumber").textContent, "5", "landscape mode still starts with a countdown");
+assert.equal(wordGroups[1].words.includes(elements.get("#word").textContent), false, "landscape countdown still does not reveal the first answer");
+await finishCountdown();
+windowListeners.deviceorientation?.({ beta: 90, gamma: 0 });
+now += 80;
+windowListeners.deviceorientation?.({ beta: 91, gamma: 42 });
+assert.equal(elements.get("#score").textContent, 0, "first landscape nod sample only confirms intent");
+assert.equal(elements.get("#statusChip").textContent, "保持点头", "landscape nod asks the holder to hold the movement");
+now += 80;
+windowListeners.deviceorientation?.({ beta: 91, gamma: 43 });
+assert.equal(elements.get("#score").textContent, 0, "second landscape nod sample still only confirms intent");
+now += 80;
+windowListeners.deviceorientation?.({ beta: 91, gamma: 44 });
+assert.equal(elements.get("#score").textContent, 1, "landscape nod around the horizontal axis marks a correct guess");
+now += 1_000;
+windowListeners.deviceorientation?.({ beta: 90, gamma: 0 });
+windowListeners.deviceorientation?.({ beta: 90, gamma: 0 });
+assert.equal(elements.get("#statusChip").textContent, "已回正", "landscape neutral posture re-arms the gesture detector");
+now += 80;
+windowListeners.deviceorientation?.({ beta: 91, gamma: -42 });
+assert.equal(elements.get("#score").textContent, 1, "first landscape lift sample only confirms intent");
+assert.equal(elements.get("#statusChip").textContent, "保持抬头", "landscape lift asks the holder to hold the movement");
+now += 80;
+windowListeners.deviceorientation?.({ beta: 91, gamma: -43 });
+assert.equal(elements.get("#score").textContent, 1, "second landscape lift sample still only confirms intent");
+now += 80;
+windowListeners.deviceorientation?.({ beta: 91, gamma: -44 });
+assert.equal(elements.get("#score").textContent, 1, "landscape lift skips instead of scoring");
+assert.equal(elements.get("#streak").textContent, 0, "landscape lift resets the streak");
+assert.equal(elements.get("#statusChip").textContent, "跳过", "landscape lift shows skip feedback");
+assert.equal(await press("Escape"), true, "Escape stops the landscape round");
 
 await elements.get("#cameraButton").click();
 const stoppedBeforeRestart = stoppedTracks;

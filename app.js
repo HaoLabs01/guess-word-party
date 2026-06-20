@@ -257,6 +257,10 @@ const recordingMimeTypes = [
   "video/webm;codecs=vp8,opus",
   "video/webm",
 ];
+const layoutModeOptions = [
+  { mode: "portrait", label: "竖屏" },
+  { mode: "landscape", label: "横屏" },
+];
 
 const state = {
   groupIndex: 0,
@@ -265,6 +269,7 @@ const state = {
   score: 0,
   streak: 0,
   durationSeconds: 180,
+  layoutMode: "portrait",
   secondsLeft: roundSeconds,
   running: false,
   countingDown: false,
@@ -290,6 +295,7 @@ const state = {
 };
 
 const els = {
+  appRoot: document.querySelector("#appRoot"),
   setupScreen: document.querySelector("#setupScreen"),
   gameScreen: document.querySelector("#gameScreen"),
   refreshButton: document.querySelector("#refreshButton"),
@@ -313,6 +319,8 @@ const els = {
   motionButton: document.querySelector("#motionButton"),
   motionStatus: document.querySelector("#motionStatus"),
   recordStatus: document.querySelector("#recordStatus"),
+  layoutModeToggle: document.querySelector("#layoutModeToggle"),
+  layoutModeStatus: document.querySelector("#layoutModeStatus"),
   countdownOverlay: document.querySelector("#countdownOverlay"),
   countdownNumber: document.querySelector("#countdownNumber"),
   recordingPlayback: document.querySelector("#recordingPlayback"),
@@ -329,6 +337,7 @@ const els = {
 };
 
 let categoryButtons = [];
+let layoutModeButtons = [];
 
 function shuffle(items) {
   return [...items].sort(() => Math.random() - 0.5);
@@ -358,6 +367,20 @@ function populateCategoryButtons() {
     button.appendChild(name);
     button.appendChild(count);
     els.categoryGrid.appendChild(button);
+    return button;
+  });
+}
+
+function populateLayoutModeButtons() {
+  els.layoutModeToggle.innerHTML = "";
+  layoutModeButtons = layoutModeOptions.map((option) => {
+    const button = document.createElement("button");
+    button.classList.add("mode-button");
+    button.type = "button";
+    button.dataset.layoutMode = option.mode;
+    button.setAttribute("aria-pressed", "false");
+    button.textContent = option.label;
+    els.layoutModeToggle.appendChild(button);
     return button;
   });
 }
@@ -397,6 +420,14 @@ function setDuration(seconds) {
   }
 
   render();
+}
+
+function setLayoutMode(mode) {
+  if (state.running || state.countingDown) return;
+  if (!layoutModeOptions.some((option) => option.mode === mode)) return;
+
+  state.layoutMode = mode;
+  renderLayoutMode();
 }
 
 function selectWordGroup(index, showFeedback = true) {
@@ -442,6 +473,7 @@ function render() {
   els.timerRing.style.setProperty("--progress", `${(state.secondsLeft / state.durationSeconds) * 100}%`);
   els.categoryName.textContent = currentGroup().name;
   renderCategoryButtons();
+  renderLayoutMode();
   renderMotionPermission();
   renderStartHint();
   els.wordsButton.disabled = roundLocked;
@@ -450,6 +482,22 @@ function render() {
   els.resetButton.setAttribute("aria-label", roundLocked ? "停止本局" : "重新开始");
   els.startButton.textContent = roundLocked ? "进行中" : "开始";
   els.startButton.disabled = roundLocked;
+}
+
+function renderLayoutMode() {
+  const isLandscape = state.layoutMode === "landscape";
+  const roundLocked = state.running || state.countingDown;
+
+  els.appRoot.classList.toggle("layout-landscape", isLandscape);
+  els.appRoot.classList.toggle("layout-portrait", !isLandscape);
+  els.layoutModeStatus.textContent = isLandscape ? "横屏" : "竖屏";
+
+  layoutModeButtons.forEach((button) => {
+    const selected = button.dataset.layoutMode === state.layoutMode;
+    button.disabled = roundLocked;
+    button.setAttribute("aria-pressed", String(selected));
+    button.classList.toggle("selected", selected);
+  });
 }
 
 function renderCategoryButtons() {
@@ -1013,6 +1061,31 @@ function normalizeAngleDelta(delta) {
   return delta;
 }
 
+function currentScreenOrientationAngle() {
+  const angle = window.screen?.orientation?.angle ?? window.orientation;
+  if (typeof angle === "number") {
+    return angle;
+  }
+
+  return window.innerWidth > window.innerHeight ? 90 : 0;
+}
+
+function landscapePitchSign() {
+  const angle = currentScreenOrientationAngle();
+  return angle === -90 || angle === 270 ? -1 : 1;
+}
+
+function establishOrientationBaseline(event) {
+  state.orientationBaseline = {
+    beta: event.beta,
+    gamma: typeof event.gamma === "number" ? event.gamma : 0,
+    layoutMode: state.layoutMode,
+  };
+  state.neutralSampleCount = neutralConfirmSamples;
+  setStatus("已校准", null);
+  return { kind: "neutral" };
+}
+
 function clearPendingOrientationAction() {
   state.pendingOrientationAction = null;
   state.pendingOrientationCount = 0;
@@ -1044,32 +1117,54 @@ function confirmOrientationAction(action) {
 
 function orientationSignalForEvent(event) {
   if (typeof event.beta !== "number") return { kind: "invalid" };
-  if (typeof event.gamma === "number" && Math.abs(event.gamma) > rollRejectionThreshold) {
+
+  if (!state.orientationBaseline) {
+    if (state.layoutMode === "landscape" && typeof event.gamma !== "number") {
+      setStatus("请横屏校准", null);
+      return { kind: "invalid" };
+    }
+    return establishOrientationBaseline(event);
+  }
+
+  if (state.orientationBaseline.layoutMode !== state.layoutMode) {
+    resetOrientationTracking();
+    return orientationSignalForEvent(event);
+  }
+
+  let motionDelta;
+  let rollDelta = 0;
+
+  if (state.layoutMode === "landscape") {
+    if (typeof event.gamma !== "number") {
+      setStatus("请横屏校准", null);
+      return { kind: "invalid" };
+    }
+    motionDelta = normalizeAngleDelta(event.gamma - state.orientationBaseline.gamma) * landscapePitchSign();
+    rollDelta = Math.abs(normalizeAngleDelta(event.beta - state.orientationBaseline.beta));
+  } else {
+    if (typeof event.gamma === "number" && Math.abs(event.gamma) > rollRejectionThreshold) {
+      return { kind: "invalid" };
+    }
+    motionDelta = normalizeAngleDelta(event.beta - state.orientationBaseline.beta);
+  }
+
+  if (rollDelta > rollRejectionThreshold) {
     return { kind: "invalid" };
   }
 
-  const beta = event.beta;
-  if (!state.orientationBaseline) {
-    state.orientationBaseline = { beta };
-    state.neutralSampleCount = neutralConfirmSamples;
-    setStatus("已校准", null);
+  if (Math.abs(motionDelta) < nodNeutralThreshold) {
     return { kind: "neutral" };
   }
 
-  const betaDelta = normalizeAngleDelta(beta - state.orientationBaseline.beta);
-  if (Math.abs(betaDelta) < nodNeutralThreshold) {
-    return { kind: "neutral" };
-  }
-
-  if (Math.abs(betaDelta) < nodCandidateThreshold) {
+  if (Math.abs(motionDelta) < nodCandidateThreshold) {
     return { kind: "weak" };
   }
 
-  const action = betaDelta > 0 ? "correct" : "skip";
+  const action = motionDelta > 0 ? "correct" : "skip";
   return {
     kind: "action",
     action,
-    strong: Math.abs(betaDelta) >= nodThreshold,
+    strong: Math.abs(motionDelta) >= nodThreshold,
   };
 }
 
@@ -1153,6 +1248,10 @@ els.durationButtons.addEventListener("click", (event) => {
   const seconds = Number(event.target?.dataset?.duration);
   setDuration(seconds);
 });
+els.layoutModeToggle.addEventListener("click", (event) => {
+  const button = event.target?.closest?.("[data-layout-mode]") ?? event.target;
+  setLayoutMode(button?.dataset?.layoutMode);
+});
 els.cameraButton.addEventListener("click", toggleRecording);
 els.motionButton.addEventListener("click", requestMotionPermission);
 els.refreshButton.addEventListener("click", restartApp);
@@ -1172,6 +1271,7 @@ window.addEventListener("deviceorientation", handleOrientation);
 window.addEventListener("keydown", handleKeyboard);
 
 populateCategoryButtons();
+populateLayoutModeButtons();
 resetDeck();
 showCurrentWord();
 initializeMotionPermission();
