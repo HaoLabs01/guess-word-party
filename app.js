@@ -288,7 +288,7 @@ const els = {
   wordCard: document.querySelector("#wordCard"),
   statusChip: document.querySelector("#statusChip"),
   categoryName: document.querySelector("#categoryName"),
-  categorySelect: document.querySelector("#categorySelect"),
+  categoryGrid: document.querySelector("#categoryGrid"),
   cameraPreview: document.querySelector("#cameraPreview"),
   cameraButton: document.querySelector("#cameraButton"),
   recordStatus: document.querySelector("#recordStatus"),
@@ -305,6 +305,8 @@ const els = {
   wordsButton: document.querySelector("#wordsButton"),
 };
 
+let categoryButtons = [];
+
 function shuffle(items) {
   return [...items].sort(() => Math.random() - 0.5);
 }
@@ -313,13 +315,27 @@ function currentGroup() {
   return wordGroups[state.groupIndex];
 }
 
-function populateCategorySelect() {
-  els.categorySelect.innerHTML = "";
-  wordGroups.forEach((group, index) => {
-    const option = document.createElement("option");
-    option.value = String(index);
-    option.textContent = group.name;
-    els.categorySelect.appendChild(option);
+function populateCategoryButtons() {
+  els.categoryGrid.innerHTML = "";
+  categoryButtons = wordGroups.map((group, index) => {
+    const button = document.createElement("button");
+    button.classList.add("category-button");
+    button.type = "button";
+    button.dataset.groupIndex = String(index);
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-pressed", "false");
+    button.setAttribute("aria-selected", "false");
+    button.setAttribute("aria-label", `${group.name}，${group.words.length} 个词`);
+
+    const name = document.createElement("span");
+    name.textContent = group.name;
+    const count = document.createElement("small");
+    count.textContent = `${group.words.length} 词`;
+
+    button.appendChild(name);
+    button.appendChild(count);
+    els.categoryGrid.appendChild(button);
+    return button;
   });
 }
 
@@ -385,13 +401,26 @@ function render() {
   els.timer.textContent = state.secondsLeft;
   els.timerRing.style.setProperty("--progress", `${(state.secondsLeft / state.durationSeconds) * 100}%`);
   els.categoryName.textContent = currentGroup().name;
-  els.categorySelect.value = String(state.groupIndex);
-  els.categorySelect.disabled = state.running;
+  renderCategoryButtons();
   els.wordsButton.disabled = state.running;
   els.cameraButton.disabled = state.running;
   els.resetButton.setAttribute("aria-label", state.running ? "停止本局" : "重新开始");
   els.startButton.textContent = state.running ? "进行中" : "开始";
   els.startButton.disabled = state.running;
+}
+
+function renderCategoryButtons() {
+  categoryButtons.forEach((button, index) => {
+    const selected = index === state.groupIndex;
+    button.disabled = state.running;
+    button.setAttribute("aria-pressed", String(selected));
+    button.setAttribute("aria-selected", String(selected));
+    if (selected) {
+      button.classList.add("selected");
+    } else {
+      button.classList.remove("selected");
+    }
+  });
 }
 
 function setStatus(text, kind) {
@@ -822,7 +851,10 @@ function switchWordGroup() {
   selectWordGroup((state.groupIndex + 1) % wordGroups.length);
 }
 
-els.categorySelect.addEventListener("change", () => selectWordGroup(els.categorySelect.value));
+els.categoryGrid.addEventListener("click", (event) => {
+  const button = event.target?.closest?.("[data-group-index]") ?? event.target;
+  selectWordGroup(button?.dataset?.groupIndex);
+});
 els.durationButtons.addEventListener("click", (event) => {
   const seconds = Number(event.target?.dataset?.duration);
   setDuration(seconds);
@@ -843,7 +875,7 @@ els.wordsButton.addEventListener("click", switchWordGroup);
 window.addEventListener("deviceorientation", handleOrientation);
 window.addEventListener("keydown", handleKeyboard);
 
-populateCategorySelect();
+populateCategoryButtons();
 resetDeck();
 setDuration(state.durationSeconds);
 showSetupScreen();

@@ -18,6 +18,16 @@ class FakeClassList {
   contains(name) {
     return this.items.has(name);
   }
+
+  toggle(name, force) {
+    const shouldAdd = force ?? !this.items.has(name);
+    if (shouldAdd) {
+      this.items.add(name);
+    } else {
+      this.items.delete(name);
+    }
+    return shouldAdd;
+  }
 }
 
 class FakeElement {
@@ -34,7 +44,8 @@ class FakeElement {
     this.paused = true;
     this.pauseCalls = 0;
     this.download = "";
-    this.options = [];
+    this.children = [];
+    this.dataset = {};
     this.attributes = new Map();
     this.classList = new FakeClassList();
     this.style = { setProperty: () => {} };
@@ -54,7 +65,7 @@ class FakeElement {
   }
 
   appendChild(child) {
-    this.options.push(child);
+    this.children.push(child);
     return child;
   }
 
@@ -74,6 +85,10 @@ class FakeElement {
     this.paused = true;
     this.pauseCalls += 1;
   }
+
+  closest() {
+    return this;
+  }
 }
 
 const elements = new Map();
@@ -92,7 +107,7 @@ const selectors = [
   "#wordCard",
   "#statusChip",
   "#categoryName",
-  "#categorySelect",
+  "#categoryGrid",
   "#cameraPreview",
   "#cameraButton",
   "#recordStatus",
@@ -206,6 +221,7 @@ const context = {
 
 const html = fs.readFileSync(new URL("../index.html", import.meta.url), "utf8");
 const appSource = fs.readFileSync(new URL("../app.js", import.meta.url), "utf8");
+const stylesSource = fs.readFileSync(new URL("../styles.css", import.meta.url), "utf8");
 const wordsSource = fs.readFileSync(new URL("../words.js", import.meta.url), "utf8");
 const serverSource = fs.readFileSync(new URL("../server.mjs", import.meta.url), "utf8");
 
@@ -216,11 +232,17 @@ assert.match(html, /id="setupStartButton"/, "renders the setup start button");
 assert.match(html, /data-duration="60"/, "lets the user choose 60 seconds");
 assert.match(html, /data-duration="180"/, "lets the user choose 180 seconds");
 assert.match(html, /data-duration="300"/, "lets the user choose 300 seconds");
+assert.match(html, /class="setup-grid"/, "setup page is organized into four visible areas");
+assert.match(html, /id="categoryPanel"/, "setup page has a word bank area");
+assert.match(html, /id="durationPanel"/, "setup page has a time area");
+assert.match(html, /id="recordingPanel"/, "setup page has a recording area");
+assert.match(html, /id="recordingsPanel"/, "setup page has a saved videos area");
 assert.match(html, /id="recordingsList"/, "renders saved recordings list");
 assert.match(html, /点头\s*↓/, "correct action is labeled as nod down plus down arrow");
 assert.match(html, /抬头\s*↑/, "skip action is labeled as lift head plus up arrow");
 assert.match(html, /id="categoryName"/, "shows the current word category");
-assert.match(html, /id="categorySelect"/, "renders a visible category selector");
+assert.match(html, /id="categoryGrid"/, "renders a visible category button grid");
+assert.doesNotMatch(html, /<select[^>]*id="categorySelect"/, "does not render the word bank as a dropdown");
 assert.match(html, /id="cameraPreview"/, "renders the front camera preview");
 assert.match(html, /id="cameraButton"/, "renders a camera permission button");
 assert.match(html, /录制视频/, "recording toggle is labeled as video recording");
@@ -260,6 +282,10 @@ assert.match(appSource, /fetch\("\/recordings"\)/, "loads saved recordings from 
 assert.match(serverSource, /request\.method === "GET" && request\.url === "\/recordings"/, "server lists saved recordings");
 assert.match(serverSource, /video\/mp4/, "server serves iPhone-playable MP4 recordings");
 assert.match(serverSource, /\.mp4/, "server lists MP4 recordings");
+assert.match(stylesSource, /\.category-grid/, "styles the word bank as a grid of category tiles");
+assert.match(stylesSource, /\.category-button/, "styles each word bank category as a selectable tile");
+assert.match(stylesSource, /\.camera-preview-frame[\s\S]*min-height:\s*(?:1[6-9]\d|[2-9]\d{2})px/, "recording preview is large enough for people across the screen");
+assert.match(stylesSource, /#cameraPreview[\s\S]*width:\s*100%[\s\S]*height:\s*100%/, "camera preview fills the larger preview area");
 
 vm.runInContext(appSource, context);
 
@@ -278,11 +304,12 @@ assert.equal(elements.get("#setupScreen").classList.contains("hidden"), false, "
 assert.equal(elements.get("#gameScreen").classList.contains("hidden"), true, "game screen is hidden before starting");
 assert.equal(elements.get("#timer").textContent, 180, "round defaults to 180 seconds");
 assert.ok(elements.get("#categoryName").textContent.length > 0, "category name is rendered");
-assert.ok(elements.get("#categorySelect").options.length >= 6, "category selector lists the word groups");
-elements.get("#categorySelect").value = "1";
-elements.get("#categorySelect").dispatchEvent({ type: "change" });
-assert.equal(elements.get("#categoryName").textContent, "美食", "changing the selector changes the category");
-assert.equal(elements.get("#statusChip").textContent, "美食", "changing the selector gives visible feedback");
+assert.ok(elements.get("#categoryGrid").children.length >= 6, "category grid lists the word groups");
+assert.equal(elements.get("#categoryGrid").children[0].getAttribute("aria-pressed"), "true", "selected category tile is marked");
+elements.get("#categoryGrid").listeners.click({ target: elements.get("#categoryGrid").children[1] });
+assert.equal(elements.get("#categoryName").textContent, "美食", "clicking a category tile changes the category");
+assert.equal(elements.get("#statusChip").textContent, "美食", "clicking a category tile gives visible feedback");
+assert.equal(elements.get("#categoryGrid").children[1].getAttribute("aria-pressed"), "true", "clicked category tile becomes selected");
 assert.equal(typeof windowListeners.keydown, "function", "registers a keydown listener");
 elements.get("#durationButtons").listeners.click({
   target: {
