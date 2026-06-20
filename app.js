@@ -244,10 +244,13 @@ const orientationConfirmWindow = 320;
 const verticalCalibrationThreshold = 45;
 const actionCooldown = 850;
 const keyboardActionCooldown = 160;
+const recordingChunkMilliseconds = 1000;
+const recordingVideoBitsPerSecond = 900_000;
+const recordingAudioBitsPerSecond = 64_000;
 const recordingMimeTypes = [
+  "video/mp4",
   "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
   "video/mp4;codecs=avc1.424028,mp4a.40.2",
-  "video/mp4",
   "video/webm;codecs=vp8,opus",
   "video/webm",
 ];
@@ -613,8 +616,15 @@ function createMediaRecorder(stream) {
 
   try {
     const recorder = selectedMimeType
-      ? new MediaRecorder(stream, { mimeType: selectedMimeType })
-      : new MediaRecorder(stream);
+      ? new MediaRecorder(stream, {
+          mimeType: selectedMimeType,
+          videoBitsPerSecond: recordingVideoBitsPerSecond,
+          audioBitsPerSecond: recordingAudioBitsPerSecond,
+        })
+      : new MediaRecorder(stream, {
+          videoBitsPerSecond: recordingVideoBitsPerSecond,
+          audioBitsPerSecond: recordingAudioBitsPerSecond,
+        });
     state.recordingMimeType = recorder.mimeType || selectedMimeType || "video/webm";
     state.recordingExtension = recordingExtensionForMimeType(state.recordingMimeType);
     return recorder;
@@ -650,8 +660,8 @@ async function requestCamera(options = {}) {
     state.mediaStream = await navigator.mediaDevices.getUserMedia({
       video: {
         facingMode: "user",
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        width: { ideal: 960 },
+        height: { ideal: 540 },
         frameRate: { ideal: 24, max: 30 },
       },
       audio: withAudio,
@@ -800,7 +810,7 @@ async function startRecording() {
     publishRecording();
     stopMediaStream();
   };
-  state.mediaRecorder.start();
+  state.mediaRecorder.start(recordingChunkMilliseconds);
   setRecordingStatus("录制中");
 }
 

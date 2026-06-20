@@ -183,12 +183,14 @@ class FakeMediaRecorder {
     this.state = "inactive";
     this.ondataavailable = null;
     this.onstop = null;
+    this.startTimeslice = null;
     lastRecorderOptions = options;
     lastRecorder = this;
   }
 
-  start() {
+  start(timeslice) {
     this.state = "recording";
+    this.startTimeslice = timeslice;
   }
 
   stop() {
@@ -342,8 +344,16 @@ assert.match(stylesSource, /\.category-button/, "styles each word bank category 
 assert.match(stylesSource, /\.camera-backdrop[\s\S]*position:\s*fixed[\s\S]*inset:\s*0/, "camera preview fills the whole screen behind the UI");
 assert.match(stylesSource, /\.camera-backdrop[\s\S]*pointer-events:\s*none/, "camera backdrop cannot block foreground controls");
 assert.match(stylesSource, /\.camera-backdrop[\s\S]*opacity:\s*0/, "camera backdrop is hidden before recording is enabled");
-assert.match(stylesSource, /\.camera-backdrop\.active[\s\S]*opacity:\s*0\.[1-6]/, "active camera backdrop is semi-transparent");
+assert.match(stylesSource, /\.camera-backdrop\.active[\s\S]*opacity:\s*0\.[6-9]/, "active camera backdrop is visible enough for describers to see themselves");
 assert.match(stylesSource, /#cameraPreview[\s\S]*width:\s*100%[\s\S]*height:\s*100%/, "camera preview fills the fullscreen backdrop");
+assert.match(stylesSource, /\.game-screen[\s\S]*pointer-events:\s*auto/, "game controls remain interactive above the camera preview");
+assert.match(stylesSource, /\.score-panel,[\s\S]*\.timer[\s\S]*background:\s*rgba\([^)]*0\.[0-3][^)]*\)/, "HUD panels do not hide the camera preview");
+assert.match(stylesSource, /\.status-chip[\s\S]*background:\s*rgba\([^)]*0\.[0-3][^)]*\)/, "status chip does not hide the camera preview");
+assert.match(stylesSource, /\.word-card[\s\S]*background:\s*rgba\([^)]*0\.[0-3][^)]*\)/, "word card lets the camera preview show through during play");
+assert.match(stylesSource, /\.word-card\.correct[\s\S]*background:\s*rgba\([^)]*0\.[0-4][^)]*\)/, "correct feedback keeps the preview visible");
+assert.match(stylesSource, /\.word-card\.skip[\s\S]*background:\s*rgba\([^)]*0\.[0-4][^)]*\)/, "skip feedback keeps the preview visible");
+assert.match(stylesSource, /\.countdown-overlay[\s\S]*background:\s*rgba\([^)]*0\.[0-3][^)]*\)/, "countdown overlay does not hide the camera preview");
+assert.match(stylesSource, /\.ghost[\s\S]*background:\s*rgba\([^)]*0\.[0-3][^)]*\)/, "secondary controls do not hide the camera preview");
 
 vm.runInContext(appSource, context);
 
@@ -387,8 +397,8 @@ await elements.get("#cameraButton").click();
 assert.equal(mediaRequestCount, 1, "turning recording on requests permission once");
 assert.equal(lastMediaRequest.audio, true, "recording toggle requests microphone audio");
 assert.equal(lastMediaRequest.video.facingMode, "user", "recording toggle requests the front camera");
-assert.equal(JSON.stringify(lastMediaRequest.video.width), JSON.stringify({ ideal: 1280 }), "recording requests a playback-friendly width");
-assert.equal(JSON.stringify(lastMediaRequest.video.height), JSON.stringify({ ideal: 720 }), "recording requests a playback-friendly height");
+assert.equal(JSON.stringify(lastMediaRequest.video.width), JSON.stringify({ ideal: 960 }), "recording requests a playback-friendly width");
+assert.equal(JSON.stringify(lastMediaRequest.video.height), JSON.stringify({ ideal: 540 }), "recording requests a playback-friendly height");
 assert.equal(JSON.stringify(lastMediaRequest.video.frameRate), JSON.stringify({ ideal: 24, max: 30 }), "recording caps frame rate for smoother phone playback");
 assert.equal(lastRecorder, null, "recording toggle does not start recording before the round");
 assert.ok(elements.get("#cameraPreview").srcObject, "recording toggle shows the authorized preview stream");
@@ -420,7 +430,10 @@ await finishCountdown();
 assert.equal(elements.get("#countdownOverlay").classList.contains("hidden"), true, "countdown hides before play begins");
 assert.equal(elements.get("#statusChip").textContent, "开始", "round shows start feedback after countdown");
 assert.equal(lastRecorder.state, "recording", "recording starts with the round");
+assert.equal(lastRecorder.startTimeslice, 1000, "recording flushes small chunks for stable phone playback");
 assert.match(lastRecorderOptions.mimeType, /^video\/mp4/, "recording prefers an iPhone-playable MP4 format");
+assert.equal(lastRecorderOptions.videoBitsPerSecond, 900_000, "recording limits video bitrate for iPhone playback");
+assert.equal(lastRecorderOptions.audioBitsPerSecond, 64_000, "recording limits audio bitrate for iPhone playback");
 assert.equal(elements.get("#recordStatus").textContent, "录制中", "recording status is visible");
 assert.equal(elements.get("#cameraBackdrop").classList.contains("active"), true, "fullscreen preview stays visible while recording during play");
 
