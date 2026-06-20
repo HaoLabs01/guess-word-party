@@ -387,6 +387,9 @@ await elements.get("#cameraButton").click();
 assert.equal(mediaRequestCount, 1, "turning recording on requests permission once");
 assert.equal(lastMediaRequest.audio, true, "recording toggle requests microphone audio");
 assert.equal(lastMediaRequest.video.facingMode, "user", "recording toggle requests the front camera");
+assert.equal(JSON.stringify(lastMediaRequest.video.width), JSON.stringify({ ideal: 1280 }), "recording requests a playback-friendly width");
+assert.equal(JSON.stringify(lastMediaRequest.video.height), JSON.stringify({ ideal: 720 }), "recording requests a playback-friendly height");
+assert.equal(JSON.stringify(lastMediaRequest.video.frameRate), JSON.stringify({ ideal: 24, max: 30 }), "recording caps frame rate for smoother phone playback");
 assert.equal(lastRecorder, null, "recording toggle does not start recording before the round");
 assert.ok(elements.get("#cameraPreview").srcObject, "recording toggle shows the authorized preview stream");
 assert.equal(elements.get("#cameraBackdrop").classList.contains("active"), true, "recording toggle shows the fullscreen preview backdrop");
@@ -422,14 +425,20 @@ assert.equal(elements.get("#recordStatus").textContent, "录制中", "recording 
 assert.equal(elements.get("#cameraBackdrop").classList.contains("active"), true, "fullscreen preview stays visible while recording during play");
 
 windowListeners.deviceorientation?.({ beta: 90 });
-windowListeners.deviceorientation?.({ beta: 118 });
+windowListeners.deviceorientation?.({ beta: 112 });
+assert.equal(elements.get("#score").textContent, 0, "small forehead movement does not trigger a correct guess");
+windowListeners.deviceorientation?.({ beta: 122 });
+assert.equal(elements.get("#score").textContent, 0, "first strong nod sample only confirms intent");
+windowListeners.deviceorientation?.({ beta: 123 });
 assert.equal(elements.get("#score").textContent, 1, "nodding down from the forehead baseline marks a correct guess");
 assert.equal(elements.get("#streak").textContent, 1, "nodding down from the forehead baseline increments the streak");
 assert.equal(elements.get("#statusChip").textContent, "+1", "nodding down from the forehead baseline shows correct feedback");
 now += 1_000;
 windowListeners.deviceorientation?.({ beta: 90 });
 
-windowListeners.deviceorientation?.({ beta: 62 });
+windowListeners.deviceorientation?.({ beta: 58 });
+assert.equal(elements.get("#score").textContent, 1, "first strong lift sample only confirms intent");
+windowListeners.deviceorientation?.({ beta: 57 });
 assert.equal(elements.get("#score").textContent, 1, "lifting the head from the forehead baseline skips instead of scoring");
 assert.equal(elements.get("#streak").textContent, 0, "lifting the head keeps streak at zero");
 assert.equal(elements.get("#statusChip").textContent, "跳过", "lifting the head shows skip feedback");
@@ -455,11 +464,13 @@ assert.equal(elements.get("#score").textContent, 2, "Space does not mark a corre
 
 now += 1_000;
 
+const stoppedBeforeRecordedRoundEnd = stoppedTracks;
 assert.equal(await press("Escape"), true, "Escape stops the round");
 assert.equal(elements.get("#startButton").disabled, false, "game is no longer running after Escape");
 assert.equal(elements.get("#resultPanel").classList.contains("hidden"), false, "stopping shows the result panel");
 assert.equal(lastRecorder.state, "inactive", "recording stops with the round");
-assert.equal(elements.get("#cameraBackdrop").classList.contains("active"), true, "fullscreen preview remains visible after recorded round ends");
+assert.ok(stoppedTracks > stoppedBeforeRecordedRoundEnd, "ending a recorded round releases the live camera stream");
+assert.equal(elements.get("#cameraBackdrop").classList.contains("active"), false, "recorded playback is not competing with a live preview backdrop");
 assert.equal(lastUpload.url, "/recordings", "recording is uploaded to the project server");
 assert.match(lastUpload.options.headers["Content-Type"], /^video\/mp4/, "MP4 recordings upload with an MP4 content type");
 assert.equal(elements.get("#downloadRecording").download, "猜词派对.mp4", "download name uses the selected recording format");
@@ -470,10 +481,13 @@ assert.equal(elements.get("#savedRecordingPath").textContent, "recordings/test-r
 const playback = elements.get("#recordingPlayback");
 playback.paused = false;
 playback.currentTime = 12;
-elements.get("#againButton").click();
+await elements.get("#againButton").click();
+await Promise.resolve();
+await Promise.resolve();
 assert.equal(playback.paused, true, "returning to setup stops recording playback");
 assert.equal(playback.currentTime, 0, "returning to setup rewinds recording playback");
 assert.equal(elements.get("#cameraButton").getAttribute("aria-checked"), "true", "recording stays enabled for the next round");
+assert.equal(elements.get("#cameraBackdrop").classList.contains("active"), true, "returning to setup restores the preview for the next recorded round");
 
 lastMediaRequest = null;
 lastRecorder = null;

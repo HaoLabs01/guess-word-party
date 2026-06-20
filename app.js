@@ -237,8 +237,10 @@ if (window.WORD_GROUPS?.length) {
 }
 
 const roundSeconds = 180;
-const nodThreshold = 18;
-const nodNeutralThreshold = 8;
+const nodThreshold = 28;
+const nodNeutralThreshold = 10;
+const orientationConfirmSamples = 2;
+const orientationConfirmWindow = 320;
 const verticalCalibrationThreshold = 45;
 const actionCooldown = 850;
 const keyboardActionCooldown = 160;
@@ -263,6 +265,9 @@ const state = {
   countdownValue: 3,
   armed: true,
   orientationBaseline: null,
+  pendingOrientationAction: null,
+  pendingOrientationCount: 0,
+  pendingOrientationAt: 0,
   lastActionAt: 0,
   timerId: null,
   countdownTimerId: null,
@@ -363,6 +368,7 @@ function showSetupScreen() {
   loadRecordings();
   render();
   renderRecordingToggle();
+  restoreRecordingPreview();
 }
 
 function showGameScreen() {
@@ -539,6 +545,21 @@ function renderRecordingToggle(statusText) {
   setRecordingStatus(statusText || (state.recordingEnabled ? "ON" : "OFF"));
 }
 
+async function restoreRecordingPreview() {
+  if (!state.recordingEnabled || state.running || state.countingDown || state.mediaStream) return;
+
+  const stream = await requestCamera({ withAudio: true });
+  if (!state.recordingEnabled) {
+    stopMediaStream();
+    renderRecordingToggle("OFF");
+    return;
+  }
+
+  if (stream) {
+    renderRecordingToggle("ON");
+  }
+}
+
 function stopRecordingPlayback() {
   els.recordingPlayback.pause?.();
   els.recordingPlayback.currentTime = 0;
@@ -627,7 +648,12 @@ async function requestCamera(options = {}) {
 
   try {
     state.mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user" },
+      video: {
+        facingMode: "user",
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 24, max: 30 },
+      },
       audio: withAudio,
     });
     state.mediaStreamHasAudio = withAudio;
@@ -729,6 +755,7 @@ function publishRecording() {
   clearRecordingUrl();
   state.recordingUrl = URL.createObjectURL(blob);
   els.recordingPlayback.src = state.recordingUrl;
+  els.recordingPlayback.load?.();
   els.recordingPlayback.classList.remove("hidden");
   els.downloadRecording.href = state.recordingUrl;
   els.downloadRecording.download = `猜词派对.${state.recordingExtension}`;
@@ -769,7 +796,10 @@ async function startRecording() {
       state.recordedChunks.push(event.data);
     }
   };
-  state.mediaRecorder.onstop = publishRecording;
+  state.mediaRecorder.onstop = () => {
+    publishRecording();
+    stopMediaStream();
+  };
   state.mediaRecorder.start();
   setRecordingStatus("录制中");
 }
@@ -777,7 +807,9 @@ async function startRecording() {
 function stopRecording() {
   if (state.mediaRecorder?.state === "recording") {
     state.mediaRecorder.stop();
+    return true;
   }
+  return false;
 }
 
 function hideCountdown() {
@@ -834,8 +866,13 @@ async function startRound() {
     return;
   }
   if (state.recordingEnabled && !state.mediaStream) {
-    renderRecordingToggle("请先开启");
-    return;
+    renderRecordingToggle("准备录像");
+    const stream = await requestCamera({ withAudio: true });
+    if (!stream) {
+      renderRecordingToggle("请先开启");
+      return;
+    }
+    renderRecordingToggle("ON");
   }
 
   window.clearInterval(state.timerId);
@@ -847,6 +884,7 @@ async function startRound() {
   state.countingDown = true;
   state.armed = true;
   state.orientationBaseline = null;
+  clearPendingOrientationAction();
   state.lastActionAt = 0;
   showGameScreen();
   resetDeck();
@@ -861,8 +899,12 @@ function finishRound(statusText = "结束") {
   state.running = false;
   state.countingDown = false;
   state.secondsLeft = 0;
+  clearPendingOrientationAction();
   hideCountdown();
-  stopRecording();
+  const stoppedActiveRecording = stopRecording();
+  if (!stoppedActiveRecording) {
+    stopMediaStream();
+  }
   els.finalScore.textContent = state.score;
   els.resultPanel.classList.remove("hidden");
   setStatus(statusText, null);
@@ -916,6 +958,29 @@ function normalizeAngleDelta(delta) {
   return delta;
 }
 
+function clearPendingOrientationAction() {
+  state.pendingOrientationAction = null;
+  state.pendingOrientationCount = 0;
+  state.pendingOrientationAt = 0;
+}
+
+function confirmOrientationAction(action) {
+  const now = Date.now();
+  const isSameAction = state.pendingOrientationAction === action;
+  const isRecent = now - state.pendingOrientationAt <= orientationConfirmWindow;
+
+  if (!isSameAction || !isRecent) {
+    state.pendingOrientationAction = action;
+    state.pendingOrientationCount = 1;
+    state.pendingOrientationAt = now;
+    return false;
+  }
+
+  state.pendingOrientationCount += 1;
+  state.pendingOrientationAt = now;
+  return state.pendingOrientationCount >= orientationConfirmSamples;
+}
+
 function orientationActionForEvent(event) {
   if (typeof event.beta !== "number") return null;
 
@@ -951,12 +1016,25 @@ function handleOrientation(event) {
   const action = orientationActionForEvent(event);
   if (action === "neutral") {
     state.armed = true;
+    clearPendingOrientationAction();
     return;
   }
 
-  if (!state.armed || !action) return;
+  if (!state.armed) {
+    return;
+  }
+
+  if (!action) {
+    clearPendingOrientationAction();
+    return;
+  }
+
+  if (!confirmOrientationAction(action)) {
+    return;
+  }
 
   state.armed = false;
+  clearPendingOrientationAction();
   registerAction(action);
 }
 
