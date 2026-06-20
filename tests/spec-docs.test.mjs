@@ -34,6 +34,16 @@ for (const phrase of [
 for (const section of ["准备页", "开始前", "倒计时", "游戏中", "结束页", "录像回看", "验收标准"]) {
   assert.match(appFlowSpec, new RegExp(`## ${section}`), `app flow spec includes ${section}`);
 }
+assert.match(appFlowSpec, /## 最高目标/, "app flow spec defines the highest product goals");
+for (const phrase of [
+  "指哪儿打哪儿",
+  "误触率要降到最低",
+  "最快看懂玩法",
+  "不会错误操作",
+  "开发时候的最高目的",
+]) {
+  assert.match(appFlowSpec, new RegExp(phrase), `app flow spec defines the goal: ${phrase}`);
+}
 for (const phrase of [
   "开始后不再弹授权确认",
   "不显示题词",
