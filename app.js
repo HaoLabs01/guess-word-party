@@ -767,11 +767,11 @@ function orientationActionForEvent(event) {
   }
 
   if (betaDelta >= nodThreshold) {
-    return "skip";
+    return "correct";
   }
 
   if (betaDelta <= -nodThreshold) {
-    return "correct";
+    return "skip";
   }
 
   return null;

@@ -316,22 +316,22 @@ assert.equal(elements.get("#recordStatus").textContent, "录制中", "recording 
 
 windowListeners.deviceorientation?.({ beta: 90 });
 windowListeners.deviceorientation?.({ beta: 118 });
-assert.equal(elements.get("#score").textContent, 0, "lifting the head from the forehead baseline skips instead of scoring");
-assert.equal(elements.get("#streak").textContent, 0, "lifting the head keeps streak at zero");
-assert.equal(elements.get("#statusChip").textContent, "跳过", "lifting the head shows skip feedback");
-now += 1_000;
-windowListeners.deviceorientation?.({ beta: 90 });
-
-windowListeners.deviceorientation?.({ beta: 62 });
 assert.equal(elements.get("#score").textContent, 1, "nodding down from the forehead baseline marks a correct guess");
 assert.equal(elements.get("#streak").textContent, 1, "nodding down from the forehead baseline increments the streak");
 assert.equal(elements.get("#statusChip").textContent, "+1", "nodding down from the forehead baseline shows correct feedback");
 now += 1_000;
 windowListeners.deviceorientation?.({ beta: 90 });
 
+windowListeners.deviceorientation?.({ beta: 62 });
+assert.equal(elements.get("#score").textContent, 1, "lifting the head from the forehead baseline skips instead of scoring");
+assert.equal(elements.get("#streak").textContent, 0, "lifting the head keeps streak at zero");
+assert.equal(elements.get("#statusChip").textContent, "跳过", "lifting the head shows skip feedback");
+now += 1_000;
+windowListeners.deviceorientation?.({ beta: 90 });
+
 assert.equal(await press("ArrowDown"), true, "prevents page movement for correct shortcut");
 assert.equal(elements.get("#score").textContent, 2, "ArrowDown marks a correct guess");
-assert.equal(elements.get("#streak").textContent, 2, "ArrowDown increments the streak");
+assert.equal(elements.get("#streak").textContent, 1, "ArrowDown increments the streak after a skip");
 assert.equal(elements.get("#statusChip").textContent, "+1", "ArrowDown shows correct feedback");
 
 now += 1_000;
