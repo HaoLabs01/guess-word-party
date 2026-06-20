@@ -307,6 +307,7 @@ assert.doesNotMatch(html, /<select[^>]*id="categorySelect"/, "does not render th
 assert.match(html, /id="cameraPreview"/, "renders the front camera preview");
 assert.match(html, /id="cameraButton"/, "renders a camera permission button");
 assert.match(html, /id="motionButton"/, "renders a motion permission button");
+assert.match(html, /开启动作权限/, "motion permission button names the permission clearly");
 assert.match(html, /id="motionStatus"/, "shows motion permission status");
 assert.match(html, /id="countdownOverlay"/, "renders a pre-round countdown overlay");
 assert.match(html, /id="countdownNumber"/, "renders a pre-round countdown number");
@@ -395,6 +396,7 @@ assert.equal(elements.get("#categoryGrid").children[1].getAttribute("aria-presse
 assert.equal(typeof windowListeners.keydown, "function", "registers a keydown listener");
 assert.equal(elements.get("#setupStartButton").disabled, true, "start is disabled until motion permission is granted");
 assert.equal(elements.get("#motionStatus").textContent, "未开启", "motion permission starts as not enabled on iPhone");
+assert.equal(elements.get("#motionButton").textContent, "开启动作权限", "motion button clearly asks for permission");
 await elements.get("#motionButton").click();
 assert.equal(motionPermissionRequests, 1, "motion permission is requested on the setup page");
 assert.equal(elements.get("#motionStatus").textContent, "已开启", "motion permission status updates on the setup page");
@@ -428,9 +430,8 @@ assert.equal(elements.get("#timer").textContent, 300, "selected duration is used
 assert.equal(elements.get("#countdownOverlay").classList.contains("hidden"), false, "Space shows the countdown before the first word");
 assert.equal(elements.get("#countdownNumber").textContent, "5", "countdown starts at 5");
 const countdownWordCardText = elements.get("#word").textContent;
-assert.match(countdownWordCardText, /本局词库/, "countdown card shows the selected word bank instead of a word");
-assert.match(countdownWordCardText, /美食/, "countdown card names the selected word bank");
-assert.match(countdownWordCardText, /描述人提示/, "countdown card tells describers what to do");
+const countdownPromptLines = countdownWordCardText.split("\n").filter(Boolean);
+assert.deepEqual(countdownPromptLines, ["本局：美食", "别说题面字", "点头=猜对  抬头=跳过"], "countdown card uses three short lines");
 assert.equal(wordGroups[1].words.includes(countdownWordCardText), false, "countdown card does not reveal the first answer");
 assert.equal(elements.get("#cameraBackdrop").classList.contains("active"), true, "fullscreen preview stays visible during countdown");
 assert.equal(lastMediaRequest.audio, true, "Space requests microphone audio");

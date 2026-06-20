@@ -428,9 +428,9 @@ function showCurrentWord() {
 
 function showCountdownPrompt() {
   els.wordCard.classList.add("round-intro");
-  els.word.textContent = `本局词库：${currentGroup().name}
-描述人提示：描述意思、特征或场景，不要说出题面里的字
-猜对让猜词的人点头，跳过让TA抬头`;
+  els.word.textContent = `本局：${currentGroup().name}
+别说题面字
+点头=猜对  抬头=跳过`;
 }
 
 function render() {
@@ -512,7 +512,7 @@ function renderMotionPermission() {
     els.motionButton.textContent = "重试";
   } else {
     els.motionStatus.textContent = "未开启";
-    els.motionButton.textContent = "开启动作";
+    els.motionButton.textContent = "开启动作权限";
   }
 
   els.motionButton.disabled = state.running || state.countingDown;
