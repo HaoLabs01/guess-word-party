@@ -363,6 +363,7 @@ assert.match(stylesSource, /\.game-screen[\s\S]*pointer-events:\s*auto/, "game c
 assert.match(stylesSource, /\.score-panel,[\s\S]*\.timer[\s\S]*background:\s*rgba\([^)]*0\.[0-3][^)]*\)/, "HUD panels do not hide the camera preview");
 assert.match(stylesSource, /\.status-chip[\s\S]*background:\s*rgba\([^)]*0\.[0-3][^)]*\)/, "status chip does not hide the camera preview");
 assert.match(stylesSource, /\.word-card[\s\S]*background:\s*rgba\([^)]*0\.[0-3][^)]*\)/, "word card lets the camera preview show through during play");
+assert.match(stylesSource, /\.word-card\.round-intro p[\s\S]*white-space:\s*pre-line/, "countdown prompt uses multiline instruction styling");
 assert.match(stylesSource, /\.word-card\.correct[\s\S]*background:\s*rgba\([^)]*0\.[0-4][^)]*\)/, "correct feedback keeps the preview visible");
 assert.match(stylesSource, /\.word-card\.skip[\s\S]*background:\s*rgba\([^)]*0\.[0-4][^)]*\)/, "skip feedback keeps the preview visible");
 assert.match(stylesSource, /\.countdown-overlay[\s\S]*background:\s*rgba\([^)]*0\.[0-3][^)]*\)/, "countdown overlay does not hide the camera preview");
@@ -426,6 +427,11 @@ assert.equal(elements.get("#gameScreen").classList.contains("hidden"), false, "g
 assert.equal(elements.get("#timer").textContent, 300, "selected duration is used for the round");
 assert.equal(elements.get("#countdownOverlay").classList.contains("hidden"), false, "Space shows the countdown before the first word");
 assert.equal(elements.get("#countdownNumber").textContent, "5", "countdown starts at 5");
+const countdownWordCardText = elements.get("#word").textContent;
+assert.match(countdownWordCardText, /本局词库/, "countdown card shows the selected word bank instead of a word");
+assert.match(countdownWordCardText, /美食/, "countdown card names the selected word bank");
+assert.match(countdownWordCardText, /描述人提示/, "countdown card tells describers what to do");
+assert.equal(wordGroups[1].words.includes(countdownWordCardText), false, "countdown card does not reveal the first answer");
 assert.equal(elements.get("#cameraBackdrop").classList.contains("active"), true, "fullscreen preview stays visible during countdown");
 assert.equal(lastMediaRequest.audio, true, "Space requests microphone audio");
 assert.equal(lastMediaRequest.video.facingMode, "user", "Space requests the front camera");
@@ -441,6 +447,7 @@ windowListeners.deviceorientation?.({ beta: 90 });
 
 await finishCountdown();
 assert.equal(elements.get("#countdownOverlay").classList.contains("hidden"), true, "countdown hides before play begins");
+assert.equal(wordGroups[1].words.includes(elements.get("#word").textContent), true, "first answer appears only after the countdown");
 assert.equal(elements.get("#statusChip").textContent, "开始", "round shows start feedback after countdown");
 assert.equal(lastRecorder.state, "recording", "recording starts with the round");
 assert.equal(lastRecorder.startTimeslice, 1000, "recording flushes small chunks for stable phone playback");

@@ -409,6 +409,7 @@ function selectWordGroup(index, showFeedback = true) {
 
   state.groupIndex = nextIndex;
   resetDeck();
+  showCurrentWord();
   if (showFeedback) {
     setStatus(currentGroup().name, null);
   }
@@ -418,7 +419,18 @@ function selectWordGroup(index, showFeedback = true) {
 function resetDeck() {
   state.deck = shuffle(currentGroup().words);
   state.wordIndex = 0;
-  els.word.textContent = state.deck[state.wordIndex];
+}
+
+function showCurrentWord() {
+  els.wordCard.classList.remove("round-intro");
+  els.word.textContent = state.deck[state.wordIndex] ?? "";
+}
+
+function showCountdownPrompt() {
+  els.wordCard.classList.add("round-intro");
+  els.word.textContent = `本局词库：${currentGroup().name}
+描述人提示：描述意思、特征或场景，不要说出题面里的字
+猜对让猜词的人点头，跳过让TA抬头`;
 }
 
 function render() {
@@ -467,7 +479,7 @@ function nextWord() {
     state.deck = shuffle(currentGroup().words);
     state.wordIndex = 0;
   }
-  els.word.textContent = state.deck[state.wordIndex];
+  showCurrentWord();
 }
 
 function motionPermissionRequired() {
@@ -852,6 +864,7 @@ async function beginPlayAfterCountdown() {
   state.countdownTimerId = null;
   state.countingDown = false;
   hideCountdown();
+  showCurrentWord();
   await startRecording();
   setStatus("开始", null);
   render();
@@ -899,8 +912,9 @@ async function startRound() {
   state.armed = true;
   resetOrientationTracking();
   state.lastActionAt = 0;
-  showGameScreen();
   resetDeck();
+  showCountdownPrompt();
+  showGameScreen();
   setStatus("准备", null);
   render();
   startCountdown();
@@ -1142,6 +1156,7 @@ window.addEventListener("keydown", handleKeyboard);
 
 populateCategoryButtons();
 resetDeck();
+showCurrentWord();
 initializeMotionPermission();
 setDuration(state.durationSeconds);
 showSetupScreen();

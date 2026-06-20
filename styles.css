@@ -609,6 +609,13 @@ button {
     0 12px 34px rgba(0, 0, 0, 0.72);
 }
 
+.word-card.round-intro p {
+  max-width: 760px;
+  font-size: clamp(24px, 6vw, 42px);
+  line-height: 1.35;
+  white-space: pre-line;
+}
+
 .word-card.correct {
   background: rgba(35, 214, 189, 0.28);
   transform: translateY(12px) rotate(1deg);
@@ -682,15 +689,25 @@ button {
   inset: 0;
   z-index: 3;
   display: grid;
-  place-items: center;
+  place-items: start center;
+  padding-top: clamp(150px, 28vh, 240px);
   border-radius: 8px;
   background: rgba(18, 18, 25, 0.18);
   backdrop-filter: none;
+  pointer-events: none;
 }
 
 .countdown-overlay span {
-  font-size: clamp(110px, 30vw, 220px);
-  line-height: 0.85;
+  min-width: 82px;
+  min-height: 82px;
+  padding: 8px 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(18, 18, 25, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: clamp(54px, 12vw, 86px);
+  line-height: 1;
   font-weight: 950;
   color: var(--lemon);
   text-shadow: 0 24px 70px rgba(0, 0, 0, 0.36);
@@ -800,6 +817,10 @@ button {
 
   .word-card p {
     font-size: clamp(46px, 15vw, 72px);
+  }
+
+  .word-card.round-intro p {
+    font-size: clamp(20px, 7vw, 32px);
   }
 }
 
