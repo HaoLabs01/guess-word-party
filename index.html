@@ -8,6 +8,10 @@
   </head>
   <body>
     <main class="app" aria-live="polite">
+      <div class="camera-backdrop" id="cameraBackdrop" aria-hidden="true">
+        <video id="cameraPreview" autoplay muted playsinline></video>
+      </div>
+
       <section class="setup-screen" id="setupScreen" aria-label="游戏准备">
         <div class="setup-header">
           <h1>猜词派对</h1>
@@ -37,16 +41,20 @@
 
           <section class="setup-card recording-panel" id="recordingPanel" aria-label="是否录制">
             <div class="panel-heading">
-              <span>是否录制</span>
-              <strong>录制视频</strong>
+              <span>权限</span>
+              <strong>动作与录制</strong>
             </div>
-            <div class="camera-preview-frame">
-              <video id="cameraPreview" autoplay muted playsinline></video>
+            <div class="motion-control-row">
+              <div class="record-copy">
+                <small id="motionStatus">未开启</small>
+                <small>开始前完成动作授权</small>
+              </div>
+              <button class="motion-button" id="motionButton" type="button">开启动作</button>
             </div>
             <div class="record-control-row">
               <div class="record-copy">
                 <small id="recordStatus">OFF</small>
-                <small>打开后本局自动录制</small>
+                <small>ON 后本局自动录制</small>
               </div>
               <button class="camera-button" id="cameraButton" type="button" role="switch" aria-checked="false" aria-label="录制视频">
                 <span class="switch-label">OFF</span>
@@ -69,6 +77,10 @@
       </section>
 
       <section class="game-screen hidden" id="gameScreen" aria-label="游戏中">
+        <section class="countdown-overlay hidden" id="countdownOverlay" aria-live="assertive">
+          <span id="countdownNumber">3</span>
+        </section>
+
         <section class="topbar">
           <button class="icon-button" id="resetButton" type="button" aria-label="停止本局">
             <span></span>

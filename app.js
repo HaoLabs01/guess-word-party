@@ -259,10 +259,14 @@ const state = {
   durationSeconds: 180,
   secondsLeft: roundSeconds,
   running: false,
+  countingDown: false,
+  countdownValue: 3,
   armed: true,
   orientationBaseline: null,
   lastActionAt: 0,
   timerId: null,
+  countdownTimerId: null,
+  motionPermission: "unknown",
   recordingEnabled: false,
   mediaStream: null,
   mediaStreamHasAudio: false,
@@ -289,9 +293,14 @@ const els = {
   statusChip: document.querySelector("#statusChip"),
   categoryName: document.querySelector("#categoryName"),
   categoryGrid: document.querySelector("#categoryGrid"),
+  cameraBackdrop: document.querySelector("#cameraBackdrop"),
   cameraPreview: document.querySelector("#cameraPreview"),
   cameraButton: document.querySelector("#cameraButton"),
+  motionButton: document.querySelector("#motionButton"),
+  motionStatus: document.querySelector("#motionStatus"),
   recordStatus: document.querySelector("#recordStatus"),
+  countdownOverlay: document.querySelector("#countdownOverlay"),
+  countdownNumber: document.querySelector("#countdownNumber"),
   recordingPlayback: document.querySelector("#recordingPlayback"),
   downloadRecording: document.querySelector("#downloadRecording"),
   savedRecordingPath: document.querySelector("#savedRecordingPath"),
@@ -341,7 +350,10 @@ function populateCategoryButtons() {
 
 function showSetupScreen() {
   state.running = false;
+  state.countingDown = false;
   window.clearInterval(state.timerId);
+  window.clearInterval(state.countdownTimerId);
+  hideCountdown();
   stopRecordingPlayback();
   els.setupScreen.classList.remove("hidden");
   els.gameScreen.classList.add("hidden");
@@ -359,7 +371,7 @@ function showGameScreen() {
 }
 
 function setDuration(seconds) {
-  if (state.running) return;
+  if (state.running || state.countingDown) return;
   if (![60, 180, 300].includes(seconds)) return;
 
   state.durationSeconds = seconds;
@@ -373,7 +385,7 @@ function setDuration(seconds) {
 }
 
 function selectWordGroup(index, showFeedback = true) {
-  if (state.running) {
+  if (state.running || state.countingDown) {
     setStatus("本局中", null);
     return;
   }
@@ -396,23 +408,26 @@ function resetDeck() {
 }
 
 function render() {
+  const roundLocked = state.running || state.countingDown;
   els.score.textContent = state.score;
   els.streak.textContent = state.streak;
   els.timer.textContent = state.secondsLeft;
   els.timerRing.style.setProperty("--progress", `${(state.secondsLeft / state.durationSeconds) * 100}%`);
   els.categoryName.textContent = currentGroup().name;
   renderCategoryButtons();
-  els.wordsButton.disabled = state.running;
-  els.cameraButton.disabled = state.running;
-  els.resetButton.setAttribute("aria-label", state.running ? "停止本局" : "重新开始");
-  els.startButton.textContent = state.running ? "进行中" : "开始";
-  els.startButton.disabled = state.running;
+  renderMotionPermission();
+  els.wordsButton.disabled = roundLocked;
+  els.cameraButton.disabled = roundLocked;
+  els.setupStartButton.disabled = roundLocked || !canStartRound();
+  els.resetButton.setAttribute("aria-label", roundLocked ? "停止本局" : "重新开始");
+  els.startButton.textContent = roundLocked ? "进行中" : "开始";
+  els.startButton.disabled = roundLocked;
 }
 
 function renderCategoryButtons() {
   categoryButtons.forEach((button, index) => {
     const selected = index === state.groupIndex;
-    button.disabled = state.running;
+    button.disabled = state.running || state.countingDown;
     button.setAttribute("aria-pressed", String(selected));
     button.setAttribute("aria-selected", String(selected));
     if (selected) {
@@ -441,27 +456,77 @@ function nextWord() {
   els.word.textContent = state.deck[state.wordIndex];
 }
 
-async function requestMotionPermission() {
-  if (
+function motionPermissionRequired() {
+  return (
     typeof DeviceOrientationEvent !== "undefined" &&
     typeof DeviceOrientationEvent.requestPermission === "function"
-  ) {
-    try {
-      await DeviceOrientationEvent.requestPermission();
-    } catch {
-      setStatus("可用按钮", null);
-    }
+  );
+}
+
+function initializeMotionPermission() {
+  state.motionPermission = motionPermissionRequired() ? "required" : "granted";
+  renderMotionPermission();
+}
+
+function canStartRound() {
+  return state.motionPermission === "granted";
+}
+
+function renderMotionPermission() {
+  if (state.motionPermission === "granted") {
+    els.motionStatus.textContent = "已开启";
+    els.motionButton.textContent = "已开启";
+    els.motionButton.disabled = true;
+    els.motionButton.classList.add("ready");
+    return;
   }
+
+  if (state.motionPermission === "denied") {
+    els.motionStatus.textContent = "未授权";
+    els.motionButton.textContent = "重试";
+  } else {
+    els.motionStatus.textContent = "未开启";
+    els.motionButton.textContent = "开启动作";
+  }
+
+  els.motionButton.disabled = state.running || state.countingDown;
+  els.motionButton.classList.remove("ready");
+}
+
+async function requestMotionPermission() {
+  if (state.running || state.countingDown) return false;
+
+  if (motionPermissionRequired()) {
+    try {
+      const result = await DeviceOrientationEvent.requestPermission();
+      state.motionPermission = result === "granted" ? "granted" : "denied";
+    } catch {
+      state.motionPermission = "denied";
+    }
+  } else {
+    state.motionPermission = "granted";
+  }
+
+  render();
+  return canStartRound();
 }
 
 function setRecordingStatus(text) {
   els.recordStatus.textContent = text;
 }
 
+function renderCameraBackdrop() {
+  if (state.mediaStream) {
+    els.cameraBackdrop.classList.add("active");
+  } else {
+    els.cameraBackdrop.classList.remove("active");
+  }
+}
+
 function renderRecordingToggle(statusText) {
   els.cameraButton.setAttribute("aria-checked", String(state.recordingEnabled));
   els.cameraButton.setAttribute("aria-label", state.recordingEnabled ? "录制视频 ON" : "录制视频 OFF");
-  els.cameraButton.disabled = state.running;
+  els.cameraButton.disabled = state.running || state.countingDown;
 
   if (state.recordingEnabled) {
     els.cameraButton.classList.add("enabled");
@@ -469,6 +534,7 @@ function renderRecordingToggle(statusText) {
     els.cameraButton.classList.remove("enabled");
   }
 
+  renderCameraBackdrop();
   setRecordingStatus(statusText || (state.recordingEnabled ? "ON" : "OFF"));
 }
 
@@ -499,6 +565,7 @@ function stopMediaStream() {
   state.mediaStream = null;
   state.mediaStreamHasAudio = false;
   els.cameraPreview.srcObject = null;
+  renderCameraBackdrop();
 }
 
 function disableRecording() {
@@ -564,6 +631,7 @@ async function requestCamera(options = {}) {
     });
     state.mediaStreamHasAudio = withAudio;
     els.cameraPreview.srcObject = state.mediaStream;
+    renderCameraBackdrop();
     return state.mediaStream;
   } catch {
     setRecordingStatus("未授权");
@@ -652,7 +720,6 @@ function publishRecording() {
   state.recordingExtension = recordingExtensionForMimeType(mimeType);
 
   if (!state.recordedChunks.length) {
-    stopMediaStream();
     setRecordingStatus("未录制");
     return;
   }
@@ -665,7 +732,6 @@ function publishRecording() {
   els.downloadRecording.href = state.recordingUrl;
   els.downloadRecording.download = `猜词派对.${state.recordingExtension}`;
   els.downloadRecording.classList.remove("hidden");
-  stopMediaStream();
   setRecordingStatus("已保存");
   uploadRecording(blob);
 }
@@ -679,8 +745,11 @@ async function startRecording() {
     return;
   }
 
-  const stream = await requestCamera({ withAudio: true });
-  if (!stream) return;
+  const stream = state.mediaStream;
+  if (!stream) {
+    setRecordingStatus("请先开启");
+    return;
+  }
 
   if (typeof MediaRecorder === "undefined") {
     setRecordingStatus("不支持");
@@ -710,22 +779,16 @@ function stopRecording() {
   }
 }
 
-async function startRound() {
-  requestMotionPermission();
-  window.clearInterval(state.timerId);
-  state.score = 0;
-  state.streak = 0;
-  state.secondsLeft = state.durationSeconds;
-  state.running = true;
-  state.armed = true;
-  state.orientationBaseline = null;
-  state.lastActionAt = 0;
-  showGameScreen();
-  resetDeck();
-  await startRecording();
-  setStatus("开始", null);
-  render();
+function hideCountdown() {
+  els.countdownOverlay.classList.add("hidden");
+}
 
+function renderCountdown() {
+  els.countdownNumber.textContent = String(state.countdownValue);
+  els.countdownOverlay.classList.remove("hidden");
+}
+
+function startRoundTimer() {
   state.timerId = window.setInterval(() => {
     state.secondsLeft -= 1;
     render();
@@ -735,10 +798,69 @@ async function startRound() {
   }, 1000);
 }
 
+async function beginPlayAfterCountdown() {
+  if (!state.running) return;
+
+  window.clearInterval(state.countdownTimerId);
+  state.countdownTimerId = null;
+  state.countingDown = false;
+  hideCountdown();
+  await startRecording();
+  setStatus("开始", null);
+  render();
+  startRoundTimer();
+}
+
+function startCountdown() {
+  state.countdownValue = 3;
+  state.countingDown = true;
+  renderCountdown();
+  state.countdownTimerId = window.setInterval(() => {
+    state.countdownValue -= 1;
+    if (state.countdownValue > 0) {
+      renderCountdown();
+      return;
+    }
+
+    beginPlayAfterCountdown();
+  }, 1000);
+}
+
+async function startRound() {
+  if (state.running || state.countingDown) return;
+  if (!canStartRound()) {
+    renderMotionPermission();
+    return;
+  }
+  if (state.recordingEnabled && !state.mediaStream) {
+    renderRecordingToggle("请先开启");
+    return;
+  }
+
+  window.clearInterval(state.timerId);
+  window.clearInterval(state.countdownTimerId);
+  state.score = 0;
+  state.streak = 0;
+  state.secondsLeft = state.durationSeconds;
+  state.running = true;
+  state.countingDown = true;
+  state.armed = true;
+  state.orientationBaseline = null;
+  state.lastActionAt = 0;
+  showGameScreen();
+  resetDeck();
+  setStatus("准备", null);
+  render();
+  startCountdown();
+}
+
 function finishRound(statusText = "结束") {
   window.clearInterval(state.timerId);
+  window.clearInterval(state.countdownTimerId);
   state.running = false;
+  state.countingDown = false;
   state.secondsLeft = 0;
+  hideCountdown();
   stopRecording();
   els.finalScore.textContent = state.score;
   els.resultPanel.classList.remove("hidden");
@@ -747,12 +869,12 @@ function finishRound(statusText = "结束") {
 }
 
 function stopRound() {
-  if (!state.running) return;
+  if (!state.running && !state.countingDown) return;
   finishRound("停止");
 }
 
 function registerAction(type, cooldown = actionCooldown) {
-  if (!state.running) return;
+  if (!state.running || state.countingDown) return;
 
   const now = Date.now();
   if (now - state.lastActionAt < cooldown) return;
@@ -807,7 +929,7 @@ function orientationActionForEvent(event) {
 }
 
 function handleOrientation(event) {
-  if (!state.running) return;
+  if (!state.running || state.countingDown) return;
 
   const action = orientationActionForEvent(event);
   if (action === "neutral") {
@@ -860,12 +982,13 @@ els.durationButtons.addEventListener("click", (event) => {
   setDuration(seconds);
 });
 els.cameraButton.addEventListener("click", toggleRecording);
+els.motionButton.addEventListener("click", requestMotionPermission);
 els.setupStartButton.addEventListener("click", () => startRound());
 els.againButton.addEventListener("click", showSetupScreen);
 els.correctButton.addEventListener("click", () => registerAction("correct"));
 els.skipButton.addEventListener("click", () => registerAction("skip"));
 els.resetButton.addEventListener("click", () => {
-  if (state.running) {
+  if (state.running || state.countingDown) {
     stopRound();
   } else {
     startRound();
@@ -877,6 +1000,7 @@ window.addEventListener("keydown", handleKeyboard);
 
 populateCategoryButtons();
 resetDeck();
+initializeMotionPermission();
 setDuration(state.durationSeconds);
 showSetupScreen();
 renderRecordingToggle();
