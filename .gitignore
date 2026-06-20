@@ -3,6 +3,7 @@
 .xdg-data/
 
 recordings/*.webm
+recordings/*.mp4
 
 screenshot-mobile.png
 node_modules/

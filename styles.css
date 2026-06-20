@@ -9,8 +9,15 @@
   --lemon: #ffe76a;
   --ink: #1b1b25;
   --shadow: 0 28px 80px rgba(0, 0, 0, 0.34);
+  --app-vh: 100vh;
   font-family:
     Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --app-vh: 100dvh;
+  }
 }
 
 * {
@@ -19,6 +26,7 @@
 
 html,
 body {
+  width: 100%;
   min-height: 100%;
   margin: 0;
   background:
@@ -29,9 +37,9 @@ body {
 }
 
 body {
-  min-height: 100svh;
+  min-height: var(--app-vh);
   display: grid;
-  place-items: stretch center;
+  place-items: stretch;
   overflow: hidden;
 }
 
@@ -46,8 +54,8 @@ button {
 .app {
   position: relative;
   width: 100%;
-  max-width: 430px;
-  min-height: 100svh;
+  max-width: none;
+  min-height: var(--app-vh);
   padding: max(16px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
   display: grid;
   grid-template-rows: 1fr;
@@ -56,7 +64,7 @@ button {
 
 .setup-screen,
 .game-screen {
-  min-height: calc(100svh - max(16px, env(safe-area-inset-top)) - max(18px, env(safe-area-inset-bottom)));
+  min-height: calc(var(--app-vh) - max(16px, env(safe-area-inset-top)) - max(18px, env(safe-area-inset-bottom)));
   display: grid;
   gap: 16px;
 }
@@ -575,8 +583,8 @@ button {
 
 @media (max-width: 520px) {
   .app {
-    justify-self: start;
-    max-width: 350px;
+    justify-self: stretch;
+    max-width: none;
     padding-inline: 12px;
   }
 

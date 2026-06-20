@@ -1,4 +1,5 @@
 recordings/*.webm
+recordings/*.mp4
 tests/
 screenshot-mobile.png
 server.mjs

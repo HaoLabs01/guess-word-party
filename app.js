@@ -237,10 +237,18 @@ if (window.WORD_GROUPS?.length) {
 }
 
 const roundSeconds = 180;
-const tiltThreshold = 46;
+const tiltThreshold = 55;
 const neutralThreshold = 24;
+const invertedTiltThreshold = 165;
 const actionCooldown = 850;
 const keyboardActionCooldown = 160;
+const recordingMimeTypes = [
+  "video/mp4;codecs=avc1.42E01E,mp4a.40.2",
+  "video/mp4;codecs=avc1.424028,mp4a.40.2",
+  "video/mp4",
+  "video/webm;codecs=vp8,opus",
+  "video/webm",
+];
 
 const state = {
   groupIndex: 0,
@@ -255,9 +263,12 @@ const state = {
   lastActionAt: 0,
   timerId: null,
   mediaStream: null,
+  mediaStreamHasAudio: false,
   mediaRecorder: null,
   recordedChunks: [],
   recordingUrl: null,
+  recordingMimeType: "video/webm",
+  recordingExtension: "webm",
 };
 
 const els = {
@@ -429,14 +440,65 @@ function clearRecordingUrl() {
   els.recordingPlayback.removeAttribute("src");
   els.recordingPlayback.classList.add("hidden");
   els.downloadRecording.href = "#";
+  els.downloadRecording.download = `猜词派对.${state.recordingExtension}`;
   els.downloadRecording.classList.add("hidden");
   els.savedRecordingPath.textContent = "";
 }
 
-async function requestCamera() {
+function stopMediaStream() {
+  if (!state.mediaStream) return;
+
+  state.mediaStream.getTracks().forEach((track) => track.stop());
+  state.mediaStream = null;
+  state.mediaStreamHasAudio = false;
+  els.cameraPreview.srcObject = null;
+}
+
+function recordingExtensionForMimeType(mimeType) {
+  return mimeType.toLowerCase().includes("mp4") ? "mp4" : "webm";
+}
+
+function selectRecordingMimeType() {
+  if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") {
+    return "";
+  }
+
+  return recordingMimeTypes.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) || "";
+}
+
+function createMediaRecorder(stream) {
+  const selectedMimeType = selectRecordingMimeType();
+
+  try {
+    const recorder = selectedMimeType
+      ? new MediaRecorder(stream, { mimeType: selectedMimeType })
+      : new MediaRecorder(stream);
+    state.recordingMimeType = recorder.mimeType || selectedMimeType || "video/webm";
+    state.recordingExtension = recordingExtensionForMimeType(state.recordingMimeType);
+    return recorder;
+  } catch {
+    const recorder = new MediaRecorder(stream);
+    state.recordingMimeType = recorder.mimeType || "video/webm";
+    state.recordingExtension = recordingExtensionForMimeType(state.recordingMimeType);
+    return recorder;
+  }
+}
+
+async function requestCamera(options = {}) {
+  const withAudio = options.withAudio === true;
+
   if (!navigator.mediaDevices?.getUserMedia) {
     setRecordingStatus("不支持");
     return null;
+  }
+
+  if (state.mediaStream) {
+    if (withAudio && !state.mediaStreamHasAudio) {
+      stopMediaStream();
+    } else {
+      setRecordingStatus("已开启");
+      return state.mediaStream;
+    }
   }
 
   if (state.mediaStream) {
@@ -446,8 +508,9 @@ async function requestCamera() {
   try {
     state.mediaStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: "user" },
-      audio: true,
+      audio: withAudio,
     });
+    state.mediaStreamHasAudio = withAudio;
     els.cameraPreview.srcObject = state.mediaStream;
     setRecordingStatus("已开启");
     return state.mediaStream;
@@ -461,7 +524,7 @@ async function uploadRecording(blob) {
   try {
     const response = await fetch("/recordings", {
       method: "POST",
-      headers: { "Content-Type": "video/webm" },
+      headers: { "Content-Type": blob.type || state.recordingMimeType || "application/octet-stream" },
       body: blob,
     });
 
@@ -514,18 +577,25 @@ async function loadRecordings() {
 }
 
 function publishRecording() {
+  const mimeType = state.mediaRecorder?.mimeType || state.recordingMimeType || "video/webm";
+  state.recordingMimeType = mimeType;
+  state.recordingExtension = recordingExtensionForMimeType(mimeType);
+
   if (!state.recordedChunks.length) {
+    stopMediaStream();
     setRecordingStatus("未录制");
     return;
   }
 
-  const blob = new Blob(state.recordedChunks, { type: "video/webm" });
+  const blob = new Blob(state.recordedChunks, { type: mimeType });
   clearRecordingUrl();
   state.recordingUrl = URL.createObjectURL(blob);
   els.recordingPlayback.src = state.recordingUrl;
   els.recordingPlayback.classList.remove("hidden");
   els.downloadRecording.href = state.recordingUrl;
+  els.downloadRecording.download = `猜词派对.${state.recordingExtension}`;
   els.downloadRecording.classList.remove("hidden");
+  stopMediaStream();
   setRecordingStatus("已保存");
   uploadRecording(blob);
 }
@@ -534,7 +604,7 @@ async function startRecording() {
   clearRecordingUrl();
   state.recordedChunks = [];
 
-  const stream = await requestCamera();
+  const stream = await requestCamera({ withAudio: true });
   if (!stream) return;
 
   if (typeof MediaRecorder === "undefined") {
@@ -542,7 +612,13 @@ async function startRecording() {
     return;
   }
 
-  state.mediaRecorder = new MediaRecorder(stream);
+  try {
+    state.mediaRecorder = createMediaRecorder(stream);
+  } catch {
+    setRecordingStatus("不支持");
+    return;
+  }
+
   state.mediaRecorder.ondataavailable = (event) => {
     if (event.data?.size > 0) {
       state.recordedChunks.push(event.data);
@@ -619,26 +695,35 @@ function registerAction(type, cooldown = actionCooldown) {
   render();
 }
 
+function orientationActionForBeta(beta) {
+  if (Math.abs(beta) < neutralThreshold) {
+    return "neutral";
+  }
+
+  if (beta >= tiltThreshold || beta <= -invertedTiltThreshold) {
+    return "skip";
+  }
+
+  if (beta <= -tiltThreshold) {
+    return "correct";
+  }
+
+  return null;
+}
+
 function handleOrientation(event) {
   if (!state.running || typeof event.beta !== "number") return;
 
-  const beta = event.beta;
-  if (Math.abs(beta) < neutralThreshold) {
+  const action = orientationActionForBeta(event.beta);
+  if (action === "neutral") {
     state.armed = true;
     return;
   }
 
-  if (!state.armed) return;
+  if (!state.armed || !action) return;
 
-  if (beta > tiltThreshold) {
-    state.armed = false;
-    registerAction("correct");
-  }
-
-  if (beta < -tiltThreshold) {
-    state.armed = false;
-    registerAction("skip");
-  }
+  state.armed = false;
+  registerAction(action);
 }
 
 async function handleKeyboard(event) {
@@ -676,7 +761,7 @@ els.durationButtons.addEventListener("click", (event) => {
   const seconds = Number(event.target?.dataset?.duration);
   setDuration(seconds);
 });
-els.cameraButton.addEventListener("click", requestCamera);
+els.cameraButton.addEventListener("click", () => requestCamera());
 els.setupStartButton.addEventListener("click", () => startRound());
 els.againButton.addEventListener("click", showSetupScreen);
 els.correctButton.addEventListener("click", () => registerAction("correct"));

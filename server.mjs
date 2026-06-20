@@ -13,8 +13,10 @@ const mimeTypes = new Map([
   [".js", "text/javascript; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
   [".png", "image/png"],
+  [".mp4", "video/mp4"],
   [".webm", "video/webm"],
 ]);
+const recordingExtensions = new Set([".mp4", ".webm"]);
 
 function sendJson(response, status, data) {
   response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
@@ -26,6 +28,10 @@ function safeStaticPath(urlPath) {
   const relativePath = cleanPath === "/" ? "/index.html" : cleanPath;
   const resolvedPath = path.resolve(root, `.${relativePath}`);
   return resolvedPath.startsWith(root) ? resolvedPath : null;
+}
+
+function recordingExtensionFromContentType(contentType = "") {
+  return contentType.toLowerCase().includes("video/mp4") ? "mp4" : "webm";
 }
 
 async function readBody(request, limitBytes = 250 * 1024 * 1024) {
@@ -54,7 +60,8 @@ async function saveRecording(request, response) {
 
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
     const suffix = Math.random().toString(36).slice(2, 8);
-    const fileName = `guess-word-${stamp}-${suffix}.webm`;
+    const extension = recordingExtensionFromContentType(request.headers["content-type"]);
+    const fileName = `guess-word-${stamp}-${suffix}.${extension}`;
     const filePath = path.join(recordingsDir, fileName);
     await writeFile(filePath, body);
 
@@ -75,7 +82,7 @@ async function listRecordings(response) {
     const recordings = [];
 
     for (const name of entries) {
-      if (!name.endsWith(".webm")) continue;
+      if (!recordingExtensions.has(path.extname(name).toLowerCase())) continue;
 
       const filePath = path.join(recordingsDir, name);
       const info = await stat(filePath);

@@ -33,6 +33,7 @@ class FakeElement {
     this.currentTime = 0;
     this.paused = true;
     this.pauseCalls = 0;
+    this.download = "";
     this.options = [];
     this.attributes = new Map();
     this.classList = new FakeClassList();
@@ -118,14 +119,21 @@ const windowListeners = {};
 let now = 1_000;
 let lastMediaRequest = null;
 let lastRecorder = null;
+let lastRecorderOptions = null;
 let lastUpload = null;
 
 class FakeMediaRecorder {
-  constructor(stream) {
+  static isTypeSupported(mimeType) {
+    return mimeType.startsWith("video/mp4");
+  }
+
+  constructor(stream, options = {}) {
     this.stream = stream;
+    this.mimeType = options.mimeType || "video/webm";
     this.state = "inactive";
     this.ondataavailable = null;
     this.onstop = null;
+    lastRecorderOptions = options;
     lastRecorder = this;
   }
 
@@ -150,9 +158,11 @@ const context = {
   },
   fetch: async (url, options) => {
     lastUpload = { url, options };
+    const contentType = options?.headers?.["Content-Type"] ?? "";
+    const extension = contentType.startsWith("video/mp4") ? "mp4" : "webm";
     return {
       ok: true,
-      json: async () => ({ ok: true, path: "recordings/test-round.webm" }),
+      json: async () => ({ ok: true, path: `recordings/test-round.${extension}` }),
     };
   },
   document: {
@@ -236,10 +246,12 @@ assert.doesNotMatch(wordsSource, /草原犀牛|热带金丝猴|动物园熊猫/,
 
 assert.match(appSource, /durationSeconds:\s*180/, "default round length is 180 seconds");
 assert.match(appSource, /facingMode:\s*"user"/, "requests the front-facing camera");
-assert.match(appSource, /audio:\s*true/, "requests microphone audio");
+assert.match(appSource, /audio:\s*withAudio/, "requests microphone audio only when starting a recording");
 assert.match(appSource, /fetch\("\/recordings"/, "uploads recordings to the local project server");
 assert.match(appSource, /fetch\("\/recordings"\)/, "loads saved recordings from the local project server");
 assert.match(serverSource, /request\.method === "GET" && request\.url === "\/recordings"/, "server lists saved recordings");
+assert.match(serverSource, /video\/mp4/, "server serves iPhone-playable MP4 recordings");
+assert.match(serverSource, /\.mp4/, "server lists MP4 recordings");
 
 vm.runInContext(appSource, context);
 
@@ -272,6 +284,12 @@ elements.get("#durationButtons").listeners.click({
 });
 assert.equal(elements.get("#timer").textContent, 300, "duration buttons update the timer preview");
 
+await elements.get("#cameraButton").click();
+assert.equal(lastMediaRequest.audio, false, "camera preview does not request microphone audio");
+assert.equal(lastMediaRequest.video.facingMode, "user", "camera preview requests the front camera");
+assert.equal(lastRecorder, null, "camera preview does not start recording");
+assert.equal(elements.get("#recordStatus").textContent, "已开启", "camera preview shows camera enabled");
+
 assert.equal(await press(" "), true, "Space starts the game");
 assert.equal(elements.get("#startButton").disabled, true, "game is running after Space");
 assert.equal(elements.get("#setupScreen").classList.contains("hidden"), true, "setup screen hides after starting");
@@ -281,7 +299,15 @@ assert.equal(elements.get("#statusChip").textContent, "开始", "Space shows sta
 assert.equal(lastMediaRequest.audio, true, "Space requests microphone audio");
 assert.equal(lastMediaRequest.video.facingMode, "user", "Space requests the front camera");
 assert.equal(lastRecorder.state, "recording", "recording starts with the round");
+assert.match(lastRecorderOptions.mimeType, /^video\/mp4/, "recording prefers an iPhone-playable MP4 format");
 assert.equal(elements.get("#recordStatus").textContent, "录制中", "recording status is visible");
+
+windowListeners.deviceorientation?.({ beta: 180 });
+assert.equal(elements.get("#score").textContent, 0, "an upside-up flip around 180 degrees skips instead of scoring");
+assert.equal(elements.get("#streak").textContent, 0, "an upside-up flip keeps streak at zero");
+assert.equal(elements.get("#statusChip").textContent, "跳过", "an upside-up flip shows skip feedback");
+now += 1_000;
+windowListeners.deviceorientation?.({ beta: 0 });
 
 assert.equal(await press("ArrowDown"), true, "prevents page movement for correct shortcut");
 assert.equal(elements.get("#score").textContent, 1, "ArrowDown marks a correct guess");
@@ -307,9 +333,11 @@ assert.equal(elements.get("#startButton").disabled, false, "game is no longer ru
 assert.equal(elements.get("#resultPanel").classList.contains("hidden"), false, "stopping shows the result panel");
 assert.equal(lastRecorder.state, "inactive", "recording stops with the round");
 assert.equal(lastUpload.url, "/recordings", "recording is uploaded to the project server");
+assert.match(lastUpload.options.headers["Content-Type"], /^video\/mp4/, "MP4 recordings upload with an MP4 content type");
+assert.equal(elements.get("#downloadRecording").download, "猜词派对.mp4", "download name uses the selected recording format");
 await Promise.resolve();
 await Promise.resolve();
-assert.equal(elements.get("#savedRecordingPath").textContent, "recordings/test-round.webm", "saved path is shown");
+assert.equal(elements.get("#savedRecordingPath").textContent, "recordings/test-round.mp4", "saved path is shown");
 
 const playback = elements.get("#recordingPlayback");
 playback.paused = false;
