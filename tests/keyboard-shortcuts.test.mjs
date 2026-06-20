@@ -97,6 +97,7 @@ const selectors = [
   "#gameScreen",
   "#refreshButton",
   "#setupStartButton",
+  "#startHint",
   "#durationButtons",
   "#recordingsList",
   "#recordingsStatus",
@@ -289,6 +290,8 @@ assert.match(html, /id="gameScreen"/, "renders a separate game screen");
 assert.match(html, /id="refreshButton"/, "renders an in-app restart button for standalone Safari");
 assert.match(html, /aria-label="[^"]*重启[^"]*"/, "restart button explains that it restarts the app");
 assert.match(html, /id="setupStartButton"/, "renders the setup start button");
+assert.match(html, /id="startHint"/, "renders start guidance when prerequisites are missing");
+assert.match(html, /先点“开启动作权限”/, "start guidance points to the motion permission control");
 assert.match(html, /data-duration="60"/, "lets the user choose 60 seconds");
 assert.match(html, /data-duration="180"/, "lets the user choose 180 seconds");
 assert.match(html, /data-duration="300"/, "lets the user choose 300 seconds");
@@ -395,12 +398,17 @@ assert.equal(elements.get("#statusChip").textContent, "美食", "clicking a cate
 assert.equal(elements.get("#categoryGrid").children[1].getAttribute("aria-pressed"), "true", "clicked category tile becomes selected");
 assert.equal(typeof windowListeners.keydown, "function", "registers a keydown listener");
 assert.equal(elements.get("#setupStartButton").disabled, true, "start is disabled until motion permission is granted");
+assert.equal(elements.get("#startHint").hidden, false, "missing motion permission shows a start hint");
+assert.match(elements.get("#startHint").textContent, /开启动作权限/, "start hint tells the user which control to use");
+assert.equal(elements.get("#motionButton").classList.contains("attention"), true, "missing motion permission highlights the motion button");
 assert.equal(elements.get("#motionStatus").textContent, "未开启", "motion permission starts as not enabled on iPhone");
 assert.equal(elements.get("#motionButton").textContent, "开启动作权限", "motion button clearly asks for permission");
 await elements.get("#motionButton").click();
 assert.equal(motionPermissionRequests, 1, "motion permission is requested on the setup page");
 assert.equal(elements.get("#motionStatus").textContent, "已开启", "motion permission status updates on the setup page");
 assert.equal(elements.get("#setupStartButton").disabled, false, "start is enabled after motion permission is granted");
+assert.equal(elements.get("#startHint").hidden, true, "start hint hides after motion permission is granted");
+assert.equal(elements.get("#motionButton").classList.contains("attention"), false, "motion button highlight clears after permission is granted");
 elements.get("#durationButtons").listeners.click({
   target: {
     dataset: { duration: "300" },

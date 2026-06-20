@@ -426,6 +426,12 @@ button {
   background: rgba(35, 214, 189, 0.92);
 }
 
+.motion-button.attention {
+  box-shadow:
+    0 0 0 3px rgba(255, 231, 106, 0.34),
+    0 12px 28px rgba(255, 231, 106, 0.16);
+}
+
 .camera-button.enabled {
   background: rgba(255, 231, 106, 0.18);
   color: var(--ink);
@@ -503,6 +509,20 @@ button {
 .setup-start {
   min-height: 58px;
   width: 100%;
+}
+
+.start-hint {
+  margin: 0;
+  min-height: 24px;
+  color: var(--lemon);
+  text-align: center;
+  font-size: 14px;
+  font-weight: 900;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.76);
+}
+
+.start-hint[hidden] {
+  display: none;
 }
 
 .score-panel,

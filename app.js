@@ -294,6 +294,7 @@ const els = {
   gameScreen: document.querySelector("#gameScreen"),
   refreshButton: document.querySelector("#refreshButton"),
   setupStartButton: document.querySelector("#setupStartButton"),
+  startHint: document.querySelector("#startHint"),
   durationButtons: document.querySelector("#durationButtons"),
   recordingsList: document.querySelector("#recordingsList"),
   recordingsStatus: document.querySelector("#recordingsStatus"),
@@ -442,6 +443,7 @@ function render() {
   els.categoryName.textContent = currentGroup().name;
   renderCategoryButtons();
   renderMotionPermission();
+  renderStartHint();
   els.wordsButton.disabled = roundLocked;
   els.cameraButton.disabled = roundLocked;
   els.setupStartButton.disabled = roundLocked || !canStartRound();
@@ -517,6 +519,21 @@ function renderMotionPermission() {
 
   els.motionButton.disabled = state.running || state.countingDown;
   els.motionButton.classList.remove("ready");
+}
+
+function renderStartHint() {
+  const needsMotionPermission = !canStartRound() && !state.running && !state.countingDown;
+
+  if (needsMotionPermission) {
+    const actionText = state.motionPermission === "denied" ? "重试" : "开启动作权限";
+    els.startHint.textContent = `先点“${actionText}”，再开始游戏`;
+    els.startHint.hidden = false;
+    els.motionButton.classList.add("attention");
+    return;
+  }
+
+  els.startHint.hidden = true;
+  els.motionButton.classList.remove("attention");
 }
 
 async function requestMotionPermission() {

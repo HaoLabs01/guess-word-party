@@ -6,6 +6,7 @@ function read(path) {
 }
 
 const readme = read("../README.md");
+const agentGuidance = read("../AGENTS.md");
 const gameplaySpec = read("../docs/gameplay-spec.md");
 const appFlowSpec = read("../docs/app-flow-spec.md");
 const review = read("../docs/app-optimization-review.md");
@@ -13,6 +14,19 @@ const review = read("../docs/app-optimization-review.md");
 assert.match(readme, /\[游戏玩法验收标准\]\(\.\/docs\/gameplay-spec\.md\)/, "README links the gameplay spec");
 assert.match(readme, /\[App 使用流程验收标准\]\(\.\/docs\/app-flow-spec\.md\)/, "README links the app flow spec");
 assert.match(readme, /\[App 优化 Review\]\(\.\/docs\/app-optimization-review\.md\)/, "README links the optimization review");
+
+assert.match(agentGuidance, /# Agent 开发准则/, "AGENTS.md provides project-level agent guidance");
+for (const phrase of [
+  "指哪儿打哪儿",
+  "误触率要降到最低",
+  "最快看懂玩法",
+  "不会错误操作",
+  "最高目的",
+  "docs/app-flow-spec.md",
+  "docs/gameplay-spec.md",
+]) {
+  assert.match(agentGuidance, new RegExp(phrase), `AGENTS.md includes ${phrase}`);
+}
 
 for (const section of ["角色", "手机姿态", "描述规则", "计分规则", "验收标准"]) {
   assert.match(gameplaySpec, new RegExp(`## ${section}`), `gameplay spec includes ${section}`);
