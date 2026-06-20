@@ -95,6 +95,7 @@ const elements = new Map();
 const selectors = [
   "#setupScreen",
   "#gameScreen",
+  "#refreshButton",
   "#setupStartButton",
   "#durationButtons",
   "#recordingsList",
@@ -144,6 +145,7 @@ let lastRecorderOptions = null;
 let lastUpload = null;
 let stoppedTracks = 0;
 let motionPermissionRequests = 0;
+let locationReplaceTarget = null;
 let nextTimerId = 1;
 const intervals = new Map();
 
@@ -252,6 +254,12 @@ const context = {
       handler();
       return 1;
     },
+    location: {
+      href: "https://guess-word-party.test/?from=homescreen",
+      replace(target) {
+        locationReplaceTarget = target;
+      },
+    },
   },
   Date: {
     now: () => now,
@@ -267,6 +275,8 @@ const serverSource = fs.readFileSync(new URL("../server.mjs", import.meta.url), 
 assert.match(html, /src="\.\/words\.js"/, "loads the external word bank before the app");
 assert.match(html, /id="setupScreen"/, "renders a setup screen before the game");
 assert.match(html, /id="gameScreen"/, "renders a separate game screen");
+assert.match(html, /id="refreshButton"/, "renders an in-app restart button for standalone Safari");
+assert.match(html, /aria-label="[^"]*重启[^"]*"/, "restart button explains that it restarts the app");
 assert.match(html, /id="setupStartButton"/, "renders the setup start button");
 assert.match(html, /data-duration="60"/, "lets the user choose 60 seconds");
 assert.match(html, /data-duration="180"/, "lets the user choose 180 seconds");
@@ -483,5 +493,12 @@ await finishCountdown();
 assert.equal(elements.get("#recordStatus").textContent, "未录制", "disabled recording shows no recording status");
 assert.equal(await press("Escape"), true, "Escape stops the no-recording round");
 assert.equal(lastUpload, null, "disabled recording does not upload anything");
+
+await elements.get("#cameraButton").click();
+const stoppedBeforeRestart = stoppedTracks;
+elements.get("#refreshButton").click();
+assert.equal(elements.get("#cameraBackdrop").classList.contains("active"), false, "restarting the app releases the preview backdrop");
+assert.ok(stoppedTracks > stoppedBeforeRestart, "restarting the app stops the camera stream first");
+assert.match(locationReplaceTarget, /^https:\/\/guess-word-party\.test\/\?restart=\d+$/, "restart button reloads the standalone app with a fresh URL");
 
 console.log("keyboard shortcuts passed");

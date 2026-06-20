@@ -280,6 +280,7 @@ const state = {
 const els = {
   setupScreen: document.querySelector("#setupScreen"),
   gameScreen: document.querySelector("#gameScreen"),
+  refreshButton: document.querySelector("#refreshButton"),
   setupStartButton: document.querySelector("#setupStartButton"),
   durationButtons: document.querySelector("#durationButtons"),
   recordingsList: document.querySelector("#recordingsList"),
@@ -873,6 +874,22 @@ function stopRound() {
   finishRound("停止");
 }
 
+function restartApp() {
+  stopRecordingPlayback();
+  stopRecording();
+  stopMediaStream();
+
+  const href = window.location?.href || "";
+  const baseUrl = href.split("#")[0].split("?")[0] || "./";
+  const restartUrl = `${baseUrl}?restart=${Date.now()}`;
+
+  if (typeof window.location?.replace === "function") {
+    window.location.replace(restartUrl);
+  } else if (window.location) {
+    window.location.href = restartUrl;
+  }
+}
+
 function registerAction(type, cooldown = actionCooldown) {
   if (!state.running || state.countingDown) return;
 
@@ -983,6 +1000,7 @@ els.durationButtons.addEventListener("click", (event) => {
 });
 els.cameraButton.addEventListener("click", toggleRecording);
 els.motionButton.addEventListener("click", requestMotionPermission);
+els.refreshButton.addEventListener("click", restartApp);
 els.setupStartButton.addEventListener("click", () => startRound());
 els.againButton.addEventListener("click", showSetupScreen);
 els.correctButton.addEventListener("click", () => registerAction("correct"));
