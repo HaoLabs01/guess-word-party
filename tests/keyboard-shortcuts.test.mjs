@@ -220,6 +220,7 @@ assert.match(html, /id="categoryName"/, "shows the current word category");
 assert.match(html, /id="categorySelect"/, "renders a visible category selector");
 assert.match(html, /id="cameraPreview"/, "renders the front camera preview");
 assert.match(html, /id="cameraButton"/, "renders a camera permission button");
+assert.match(html, /开始时启用/, "setup camera control explains recording starts with the round");
 assert.match(html, /id="recordingPlayback"/, "renders a recording playback element");
 assert.match(html, /id="savedRecordingPath"/, "shows the saved recording path");
 assert.doesNotMatch(html, /id="feedback"/, "does not render a duplicate feedback button group");
@@ -285,10 +286,9 @@ elements.get("#durationButtons").listeners.click({
 assert.equal(elements.get("#timer").textContent, 300, "duration buttons update the timer preview");
 
 await elements.get("#cameraButton").click();
-assert.equal(lastMediaRequest.audio, false, "camera preview does not request microphone audio");
-assert.equal(lastMediaRequest.video.facingMode, "user", "camera preview requests the front camera");
-assert.equal(lastRecorder, null, "camera preview does not start recording");
-assert.equal(elements.get("#recordStatus").textContent, "已开启", "camera preview shows camera enabled");
+assert.equal(lastMediaRequest, null, "setup camera control does not request recording permission");
+assert.equal(lastRecorder, null, "setup camera control does not start recording");
+assert.equal(elements.get("#recordStatus").textContent, "开始时启用", "setup camera control explains recording timing");
 
 assert.equal(await press(" "), true, "Space starts the game");
 assert.equal(elements.get("#startButton").disabled, true, "game is running after Space");
@@ -309,22 +309,29 @@ assert.equal(elements.get("#statusChip").textContent, "跳过", "an upside-up fl
 now += 1_000;
 windowListeners.deviceorientation?.({ beta: 0 });
 
+windowListeners.deviceorientation?.({ beta: -180 });
+assert.equal(elements.get("#score").textContent, 1, "a down flip around -180 degrees marks a correct guess");
+assert.equal(elements.get("#streak").textContent, 1, "a down flip around -180 degrees increments the streak");
+assert.equal(elements.get("#statusChip").textContent, "+1", "a down flip around -180 degrees shows correct feedback");
+now += 1_000;
+windowListeners.deviceorientation?.({ beta: 0 });
+
 assert.equal(await press("ArrowDown"), true, "prevents page movement for correct shortcut");
-assert.equal(elements.get("#score").textContent, 1, "ArrowDown marks a correct guess");
-assert.equal(elements.get("#streak").textContent, 1, "ArrowDown increments the streak");
+assert.equal(elements.get("#score").textContent, 2, "ArrowDown marks a correct guess");
+assert.equal(elements.get("#streak").textContent, 2, "ArrowDown increments the streak");
 assert.equal(elements.get("#statusChip").textContent, "+1", "ArrowDown shows correct feedback");
 
 now += 1_000;
 
 assert.equal(await press("ArrowUp"), true, "prevents page movement for wrong shortcut");
-assert.equal(elements.get("#score").textContent, 1, "ArrowUp does not add score");
+assert.equal(elements.get("#score").textContent, 2, "ArrowUp does not add score");
 assert.equal(elements.get("#streak").textContent, 0, "ArrowUp resets the streak");
 assert.equal(elements.get("#statusChip").textContent, "跳过", "ArrowUp shows skip feedback");
 
 now += 1_000;
 
 assert.equal(await press(" "), true, "Space is handled during the game");
-assert.equal(elements.get("#score").textContent, 1, "Space does not mark a correct guess during the game");
+assert.equal(elements.get("#score").textContent, 2, "Space does not mark a correct guess during the game");
 
 now += 1_000;
 

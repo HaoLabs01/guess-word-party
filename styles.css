@@ -268,7 +268,7 @@ button {
 
 .camera-panel {
   display: grid;
-  grid-template-columns: 58px 1fr 50px;
+  grid-template-columns: 58px 1fr 84px;
   gap: 8px;
   align-items: center;
   padding: 8px;
@@ -299,7 +299,7 @@ button {
   border-radius: 8px;
   background: rgba(35, 214, 189, 0.18);
   color: var(--teal);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 900;
 }
 

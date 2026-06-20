@@ -239,7 +239,6 @@ if (window.WORD_GROUPS?.length) {
 const roundSeconds = 180;
 const tiltThreshold = 55;
 const neutralThreshold = 24;
-const invertedTiltThreshold = 165;
 const actionCooldown = 850;
 const keyboardActionCooldown = 160;
 const recordingMimeTypes = [
@@ -700,7 +699,7 @@ function orientationActionForBeta(beta) {
     return "neutral";
   }
 
-  if (beta >= tiltThreshold || beta <= -invertedTiltThreshold) {
+  if (beta >= tiltThreshold) {
     return "skip";
   }
 
@@ -761,7 +760,7 @@ els.durationButtons.addEventListener("click", (event) => {
   const seconds = Number(event.target?.dataset?.duration);
   setDuration(seconds);
 });
-els.cameraButton.addEventListener("click", () => requestCamera());
+els.cameraButton.addEventListener("click", () => setRecordingStatus("开始时启用"));
 els.setupStartButton.addEventListener("click", () => startRound());
 els.againButton.addEventListener("click", showSetupScreen);
 els.correctButton.addEventListener("click", () => registerAction("correct"));
