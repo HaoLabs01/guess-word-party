@@ -268,7 +268,7 @@ button {
 
 .camera-panel {
   display: grid;
-  grid-template-columns: 58px 1fr 84px;
+  grid-template-columns: 58px 1fr 112px;
   gap: 8px;
   align-items: center;
   padding: 8px;
@@ -295,17 +295,60 @@ button {
 }
 
 .camera-button {
-  min-height: 40px;
+  position: relative;
+  width: 112px;
+  height: 42px;
+  min-height: 42px;
   border-radius: 8px;
   background: rgba(35, 214, 189, 0.18);
   color: var(--teal);
-  font-size: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  padding: 4px;
+  overflow: hidden;
+  font-size: 12px;
   font-weight: 900;
 }
 
 .camera-button.enabled {
-  background: rgba(255, 231, 106, 0.92);
+  background: rgba(255, 231, 106, 0.18);
   color: var(--ink);
+}
+
+.switch-label {
+  position: relative;
+  z-index: 1;
+  color: rgba(255, 249, 237, 0.68);
+  line-height: 1;
+  text-align: center;
+}
+
+.camera-button.enabled .switch-label:nth-child(2) {
+  color: var(--ink);
+}
+
+.camera-button:not(.enabled) .switch-label:nth-child(1) {
+  color: var(--ink);
+}
+
+.switch-thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 50px;
+  height: 32px;
+  border-radius: 6px;
+  background: var(--text);
+  transition:
+    transform 180ms ease,
+    background 180ms ease;
+}
+
+.camera-button.enabled .switch-thumb {
+  background: var(--lemon);
+  transform: translateX(54px);
 }
 
 .recordings-panel {

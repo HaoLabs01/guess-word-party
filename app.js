@@ -237,8 +237,9 @@ if (window.WORD_GROUPS?.length) {
 }
 
 const roundSeconds = 180;
-const tiltThreshold = 55;
-const neutralThreshold = 24;
+const nodThreshold = 18;
+const nodNeutralThreshold = 8;
+const verticalCalibrationThreshold = 45;
 const actionCooldown = 850;
 const keyboardActionCooldown = 160;
 const recordingMimeTypes = [
@@ -259,6 +260,7 @@ const state = {
   secondsLeft: roundSeconds,
   running: false,
   armed: true,
+  orientationBaseline: null,
   lastActionAt: 0,
   timerId: null,
   recordingEnabled: false,
@@ -428,8 +430,8 @@ function setRecordingStatus(text) {
 }
 
 function renderRecordingToggle(statusText) {
-  els.cameraButton.textContent = state.recordingEnabled ? "关闭录制" : "开启录制";
-  els.cameraButton.setAttribute("aria-pressed", String(state.recordingEnabled));
+  els.cameraButton.setAttribute("aria-checked", String(state.recordingEnabled));
+  els.cameraButton.setAttribute("aria-label", state.recordingEnabled ? "录制视频 ON" : "录制视频 OFF");
   els.cameraButton.disabled = state.running;
 
   if (state.recordingEnabled) {
@@ -438,7 +440,7 @@ function renderRecordingToggle(statusText) {
     els.cameraButton.classList.remove("enabled");
   }
 
-  setRecordingStatus(statusText || (state.recordingEnabled ? "录制开启" : "录制关闭"));
+  setRecordingStatus(statusText || (state.recordingEnabled ? "ON" : "OFF"));
 }
 
 function stopRecordingPlayback() {
@@ -473,7 +475,7 @@ function stopMediaStream() {
 function disableRecording() {
   state.recordingEnabled = false;
   stopMediaStream();
-  renderRecordingToggle("录制关闭");
+  renderRecordingToggle("OFF");
 }
 
 function recordingExtensionForMimeType(mimeType) {
@@ -556,7 +558,7 @@ async function toggleRecording() {
   }
 
   state.recordingEnabled = true;
-  renderRecordingToggle("录制开启");
+  renderRecordingToggle("ON");
 }
 
 async function uploadRecording(blob) {
@@ -687,6 +689,7 @@ async function startRound() {
   state.secondsLeft = state.durationSeconds;
   state.running = true;
   state.armed = true;
+  state.orientationBaseline = null;
   state.lastActionAt = 0;
   showGameScreen();
   resetDeck();
@@ -739,16 +742,35 @@ function registerAction(type, cooldown = actionCooldown) {
   render();
 }
 
-function orientationActionForBeta(beta) {
-  if (Math.abs(beta) < neutralThreshold) {
+function normalizeAngleDelta(delta) {
+  if (delta > 180) return delta - 360;
+  if (delta < -180) return delta + 360;
+  return delta;
+}
+
+function orientationActionForEvent(event) {
+  if (typeof event.beta !== "number") return null;
+
+  const beta = event.beta;
+  if (!state.orientationBaseline) {
+    if (Math.abs(beta) < verticalCalibrationThreshold) {
+      return null;
+    }
+
+    state.orientationBaseline = { beta };
     return "neutral";
   }
 
-  if (beta >= tiltThreshold) {
+  const betaDelta = normalizeAngleDelta(beta - state.orientationBaseline.beta);
+  if (Math.abs(betaDelta) < nodNeutralThreshold) {
+    return "neutral";
+  }
+
+  if (betaDelta >= nodThreshold) {
     return "skip";
   }
 
-  if (beta <= -tiltThreshold) {
+  if (betaDelta <= -nodThreshold) {
     return "correct";
   }
 
@@ -756,9 +778,9 @@ function orientationActionForBeta(beta) {
 }
 
 function handleOrientation(event) {
-  if (!state.running || typeof event.beta !== "number") return;
+  if (!state.running) return;
 
-  const action = orientationActionForBeta(event.beta);
+  const action = orientationActionForEvent(event);
   if (action === "neutral") {
     state.armed = true;
     return;

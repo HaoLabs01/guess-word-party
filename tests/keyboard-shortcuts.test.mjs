@@ -217,14 +217,17 @@ assert.match(html, /data-duration="60"/, "lets the user choose 60 seconds");
 assert.match(html, /data-duration="180"/, "lets the user choose 180 seconds");
 assert.match(html, /data-duration="300"/, "lets the user choose 300 seconds");
 assert.match(html, /id="recordingsList"/, "renders saved recordings list");
-assert.match(html, /翻下\s*↓/, "correct action is labeled as flip down plus down arrow");
-assert.match(html, /翻上\s*↑/, "skip action is labeled as flip up plus up arrow");
+assert.match(html, /点头\s*↓/, "correct action is labeled as nod down plus down arrow");
+assert.match(html, /抬头\s*↑/, "skip action is labeled as lift head plus up arrow");
 assert.match(html, /id="categoryName"/, "shows the current word category");
 assert.match(html, /id="categorySelect"/, "renders a visible category selector");
 assert.match(html, /id="cameraPreview"/, "renders the front camera preview");
 assert.match(html, /id="cameraButton"/, "renders a camera permission button");
-assert.match(html, /录制关闭/, "recording is off by default on the setup screen");
-assert.match(html, /aria-pressed="false"/, "recording toggle exposes its off state");
+assert.match(html, /录制视频/, "recording toggle is labeled as video recording");
+assert.match(html, /role="switch"/, "recording toggle uses switch semantics");
+assert.match(html, /aria-checked="false"/, "recording toggle exposes its off state");
+assert.match(html, /OFF/, "recording switch shows the off side");
+assert.match(html, /ON/, "recording switch shows the on side");
 assert.match(html, /id="recordingPlayback"/, "renders a recording playback element");
 assert.match(html, /id="savedRecordingPath"/, "shows the saved recording path");
 assert.doesNotMatch(html, /id="feedback"/, "does not render a duplicate feedback button group");
@@ -295,9 +298,8 @@ assert.equal(lastMediaRequest.audio, true, "recording toggle requests microphone
 assert.equal(lastMediaRequest.video.facingMode, "user", "recording toggle requests the front camera");
 assert.equal(lastRecorder, null, "recording toggle does not start recording before the round");
 assert.ok(elements.get("#cameraPreview").srcObject, "recording toggle shows the authorized preview stream");
-assert.equal(elements.get("#recordStatus").textContent, "录制开启", "recording toggle shows the enabled state");
-assert.equal(elements.get("#cameraButton").textContent, "关闭录制", "recording toggle can be turned off");
-assert.equal(elements.get("#cameraButton").getAttribute("aria-pressed"), "true", "recording toggle exposes its on state");
+assert.equal(elements.get("#recordStatus").textContent, "ON", "recording toggle shows the enabled state");
+assert.equal(elements.get("#cameraButton").getAttribute("aria-checked"), "true", "recording toggle exposes its on state");
 
 assert.equal(await press(" "), true, "Space starts the game");
 assert.equal(elements.get("#startButton").disabled, true, "game is running after Space");
@@ -312,19 +314,20 @@ assert.equal(lastRecorder.state, "recording", "recording starts with the round")
 assert.match(lastRecorderOptions.mimeType, /^video\/mp4/, "recording prefers an iPhone-playable MP4 format");
 assert.equal(elements.get("#recordStatus").textContent, "录制中", "recording status is visible");
 
-windowListeners.deviceorientation?.({ beta: 180 });
-assert.equal(elements.get("#score").textContent, 0, "an upside-up flip around 180 degrees skips instead of scoring");
-assert.equal(elements.get("#streak").textContent, 0, "an upside-up flip keeps streak at zero");
-assert.equal(elements.get("#statusChip").textContent, "跳过", "an upside-up flip shows skip feedback");
+windowListeners.deviceorientation?.({ beta: 90 });
+windowListeners.deviceorientation?.({ beta: 118 });
+assert.equal(elements.get("#score").textContent, 0, "lifting the head from the forehead baseline skips instead of scoring");
+assert.equal(elements.get("#streak").textContent, 0, "lifting the head keeps streak at zero");
+assert.equal(elements.get("#statusChip").textContent, "跳过", "lifting the head shows skip feedback");
 now += 1_000;
-windowListeners.deviceorientation?.({ beta: 0 });
+windowListeners.deviceorientation?.({ beta: 90 });
 
-windowListeners.deviceorientation?.({ beta: -180 });
-assert.equal(elements.get("#score").textContent, 1, "a down flip around -180 degrees marks a correct guess");
-assert.equal(elements.get("#streak").textContent, 1, "a down flip around -180 degrees increments the streak");
-assert.equal(elements.get("#statusChip").textContent, "+1", "a down flip around -180 degrees shows correct feedback");
+windowListeners.deviceorientation?.({ beta: 62 });
+assert.equal(elements.get("#score").textContent, 1, "nodding down from the forehead baseline marks a correct guess");
+assert.equal(elements.get("#streak").textContent, 1, "nodding down from the forehead baseline increments the streak");
+assert.equal(elements.get("#statusChip").textContent, "+1", "nodding down from the forehead baseline shows correct feedback");
 now += 1_000;
-windowListeners.deviceorientation?.({ beta: 0 });
+windowListeners.deviceorientation?.({ beta: 90 });
 
 assert.equal(await press("ArrowDown"), true, "prevents page movement for correct shortcut");
 assert.equal(elements.get("#score").textContent, 2, "ArrowDown marks a correct guess");
@@ -362,16 +365,15 @@ playback.currentTime = 12;
 elements.get("#againButton").click();
 assert.equal(playback.paused, true, "returning to setup stops recording playback");
 assert.equal(playback.currentTime, 0, "returning to setup rewinds recording playback");
-assert.equal(elements.get("#cameraButton").textContent, "关闭录制", "recording stays enabled for the next round");
+assert.equal(elements.get("#cameraButton").getAttribute("aria-checked"), "true", "recording stays enabled for the next round");
 
 lastMediaRequest = null;
 lastRecorder = null;
 lastRecorderOptions = null;
 lastUpload = null;
 await elements.get("#cameraButton").click();
-assert.equal(elements.get("#recordStatus").textContent, "录制关闭", "recording toggle shows the disabled state");
-assert.equal(elements.get("#cameraButton").textContent, "开启录制", "recording toggle can be turned on again");
-assert.equal(elements.get("#cameraButton").getAttribute("aria-pressed"), "false", "recording toggle exposes its off state after disabling");
+assert.equal(elements.get("#recordStatus").textContent, "OFF", "recording toggle shows the disabled state");
+assert.equal(elements.get("#cameraButton").getAttribute("aria-checked"), "false", "recording toggle exposes its off state after disabling");
 assert.ok(stoppedTracks > 0, "turning recording off stops the preview stream");
 
 assert.equal(await press(" "), true, "Space starts a no-recording round");
