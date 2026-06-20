@@ -1,0 +1,11 @@
+.vercel/
+.vercel-global/
+.xdg-data/
+
+recordings/*.webm
+
+screenshot-mobile.png
+node_modules/
+
+.env
+.env.*

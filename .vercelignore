@@ -1,0 +1,6 @@
+recordings/*.webm
+tests/
+screenshot-mobile.png
+server.mjs
+.vercel/
+.vercel-global/

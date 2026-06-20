@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>猜词派对</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app" aria-live="polite">
+      <section class="setup-screen" id="setupScreen" aria-label="游戏准备">
+        <div class="setup-header">
+          <h1>猜词派对</h1>
+          <p>选好词库和时间，再把手机交给猜词的人。</p>
+        </div>
+
+        <section class="setup-panel" aria-label="游戏设置">
+          <label class="category-select">
+            <span>词库</span>
+            <select id="categorySelect" aria-label="选择词库"></select>
+          </label>
+
+          <section class="duration-panel" aria-label="选择游戏时间">
+            <span>时间</span>
+            <div class="duration-buttons" id="durationButtons">
+              <button class="time-button" type="button" data-duration="60">60s</button>
+              <button class="time-button selected" type="button" data-duration="180">180s</button>
+              <button class="time-button" type="button" data-duration="300">300s</button>
+            </div>
+          </section>
+
+          <div class="camera-panel" id="cameraPanel">
+            <video id="cameraPreview" autoplay muted playsinline></video>
+            <div class="record-copy">
+              <strong id="recordStatus">待开启</strong>
+              <small>前置摄像头</small>
+            </div>
+            <button class="camera-button" id="cameraButton" type="button">开启</button>
+          </div>
+        </section>
+
+        <section class="recordings-panel" aria-label="已录制的视频">
+          <div class="recordings-title">
+            <strong>已录制的视频</strong>
+            <small id="recordingsStatus">读取中</small>
+          </div>
+          <div class="recordings-list" id="recordingsList"></div>
+        </section>
+
+        <button class="primary setup-start" id="setupStartButton" type="button" aria-keyshortcuts="Space">开始游戏</button>
+      </section>
+
+      <section class="game-screen hidden" id="gameScreen" aria-label="游戏中">
+        <section class="topbar">
+          <button class="icon-button" id="resetButton" type="button" aria-label="停止本局">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <div class="title-stack">
+            <h1>猜词派对</h1>
+            <span id="categoryName">成语</span>
+          </div>
+          <button class="icon-button group" id="wordsButton" type="button" aria-label="换一组词">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+        </section>
+
+        <section class="hud" aria-label="本轮状态">
+          <div class="score-panel score">
+            <span>得分</span>
+            <strong id="score">0</strong>
+          </div>
+          <div class="timer" id="timerRing">
+            <span>剩余</span>
+            <strong id="timer">180</strong>
+            <small>秒</small>
+          </div>
+          <div class="score-panel streak">
+            <span>连对</span>
+            <strong id="streak">0</strong>
+          </div>
+        </section>
+
+        <section class="status-chip" id="statusChip">准备</section>
+
+        <section class="word-card" id="wordCard">
+          <div class="card-shine"></div>
+          <p id="word">山海关</p>
+        </section>
+
+        <section class="actions">
+          <button class="primary" id="startButton" type="button" disabled>进行中</button>
+          <button class="ghost action-button" id="correctButton" type="button" aria-label="翻下，猜对加一分" aria-keyshortcuts="ArrowDown">
+            <span class="button-title">翻下 ↓</span>
+            <span class="button-hint">猜对 +1</span>
+          </button>
+          <button class="ghost action-button" id="skipButton" type="button" aria-label="翻上，跳过本词" aria-keyshortcuts="ArrowUp">
+            <span class="button-title">翻上 ↑</span>
+            <span class="button-hint">跳过</span>
+          </button>
+        </section>
+      </section>
+
+      <section class="result hidden" id="resultPanel">
+        <h2>本轮结束</h2>
+        <p><strong id="finalScore">0</strong> 分</p>
+        <video class="recording-playback hidden" id="recordingPlayback" controls playsinline></video>
+        <a class="download-link hidden" id="downloadRecording" href="#" download="猜词派对.webm">下载录像</a>
+        <small class="saved-path" id="savedRecordingPath"></small>
+        <button class="primary" id="againButton" type="button">回到准备页</button>
+      </section>
+    </main>
+
+    <script src="./words.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
