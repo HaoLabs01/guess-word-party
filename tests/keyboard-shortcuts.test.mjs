@@ -118,9 +118,11 @@ elements.get("#resultPanel").classList.add("hidden");
 const windowListeners = {};
 let now = 1_000;
 let lastMediaRequest = null;
+let mediaRequestCount = 0;
 let lastRecorder = null;
 let lastRecorderOptions = null;
 let lastUpload = null;
+let stoppedTracks = 0;
 
 class FakeMediaRecorder {
   static isTypeSupported(mimeType) {
@@ -179,8 +181,9 @@ const context = {
     mediaDevices: {
       async getUserMedia(constraints) {
         lastMediaRequest = constraints;
+        mediaRequestCount += 1;
         return {
-          getTracks: () => [{ stop: () => {} }],
+          getTracks: () => [{ stop: () => { stoppedTracks += 1; } }],
         };
       },
     },
@@ -220,7 +223,8 @@ assert.match(html, /id="categoryName"/, "shows the current word category");
 assert.match(html, /id="categorySelect"/, "renders a visible category selector");
 assert.match(html, /id="cameraPreview"/, "renders the front camera preview");
 assert.match(html, /id="cameraButton"/, "renders a camera permission button");
-assert.match(html, /开始时启用/, "setup camera control explains recording starts with the round");
+assert.match(html, /录制关闭/, "recording is off by default on the setup screen");
+assert.match(html, /aria-pressed="false"/, "recording toggle exposes its off state");
 assert.match(html, /id="recordingPlayback"/, "renders a recording playback element");
 assert.match(html, /id="savedRecordingPath"/, "shows the saved recording path");
 assert.doesNotMatch(html, /id="feedback"/, "does not render a duplicate feedback button group");
@@ -286,9 +290,14 @@ elements.get("#durationButtons").listeners.click({
 assert.equal(elements.get("#timer").textContent, 300, "duration buttons update the timer preview");
 
 await elements.get("#cameraButton").click();
-assert.equal(lastMediaRequest, null, "setup camera control does not request recording permission");
-assert.equal(lastRecorder, null, "setup camera control does not start recording");
-assert.equal(elements.get("#recordStatus").textContent, "开始时启用", "setup camera control explains recording timing");
+assert.equal(mediaRequestCount, 1, "turning recording on requests permission once");
+assert.equal(lastMediaRequest.audio, true, "recording toggle requests microphone audio");
+assert.equal(lastMediaRequest.video.facingMode, "user", "recording toggle requests the front camera");
+assert.equal(lastRecorder, null, "recording toggle does not start recording before the round");
+assert.ok(elements.get("#cameraPreview").srcObject, "recording toggle shows the authorized preview stream");
+assert.equal(elements.get("#recordStatus").textContent, "录制开启", "recording toggle shows the enabled state");
+assert.equal(elements.get("#cameraButton").textContent, "关闭录制", "recording toggle can be turned off");
+assert.equal(elements.get("#cameraButton").getAttribute("aria-pressed"), "true", "recording toggle exposes its on state");
 
 assert.equal(await press(" "), true, "Space starts the game");
 assert.equal(elements.get("#startButton").disabled, true, "game is running after Space");
@@ -298,6 +307,7 @@ assert.equal(elements.get("#timer").textContent, 300, "selected duration is used
 assert.equal(elements.get("#statusChip").textContent, "开始", "Space shows start feedback");
 assert.equal(lastMediaRequest.audio, true, "Space requests microphone audio");
 assert.equal(lastMediaRequest.video.facingMode, "user", "Space requests the front camera");
+assert.equal(mediaRequestCount, 1, "starting the round reuses the one recording permission");
 assert.equal(lastRecorder.state, "recording", "recording starts with the round");
 assert.match(lastRecorderOptions.mimeType, /^video\/mp4/, "recording prefers an iPhone-playable MP4 format");
 assert.equal(elements.get("#recordStatus").textContent, "录制中", "recording status is visible");
@@ -352,5 +362,23 @@ playback.currentTime = 12;
 elements.get("#againButton").click();
 assert.equal(playback.paused, true, "returning to setup stops recording playback");
 assert.equal(playback.currentTime, 0, "returning to setup rewinds recording playback");
+assert.equal(elements.get("#cameraButton").textContent, "关闭录制", "recording stays enabled for the next round");
+
+lastMediaRequest = null;
+lastRecorder = null;
+lastRecorderOptions = null;
+lastUpload = null;
+await elements.get("#cameraButton").click();
+assert.equal(elements.get("#recordStatus").textContent, "录制关闭", "recording toggle shows the disabled state");
+assert.equal(elements.get("#cameraButton").textContent, "开启录制", "recording toggle can be turned on again");
+assert.equal(elements.get("#cameraButton").getAttribute("aria-pressed"), "false", "recording toggle exposes its off state after disabling");
+assert.ok(stoppedTracks > 0, "turning recording off stops the preview stream");
+
+assert.equal(await press(" "), true, "Space starts a no-recording round");
+assert.equal(lastMediaRequest, null, "disabled recording does not request camera permission on start");
+assert.equal(lastRecorder, null, "disabled recording does not create a recorder");
+assert.equal(elements.get("#recordStatus").textContent, "未录制", "disabled recording shows no recording status");
+assert.equal(await press("Escape"), true, "Escape stops the no-recording round");
+assert.equal(lastUpload, null, "disabled recording does not upload anything");
 
 console.log("keyboard shortcuts passed");

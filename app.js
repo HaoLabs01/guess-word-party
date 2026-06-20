@@ -261,6 +261,7 @@ const state = {
   armed: true,
   lastActionAt: 0,
   timerId: null,
+  recordingEnabled: false,
   mediaStream: null,
   mediaStreamHasAudio: false,
   mediaRecorder: null,
@@ -330,6 +331,7 @@ function showSetupScreen() {
   setStatus("准备", null);
   loadRecordings();
   render();
+  renderRecordingToggle();
 }
 
 function showGameScreen() {
@@ -384,6 +386,7 @@ function render() {
   els.categorySelect.value = String(state.groupIndex);
   els.categorySelect.disabled = state.running;
   els.wordsButton.disabled = state.running;
+  els.cameraButton.disabled = state.running;
   els.resetButton.setAttribute("aria-label", state.running ? "停止本局" : "重新开始");
   els.startButton.textContent = state.running ? "进行中" : "开始";
   els.startButton.disabled = state.running;
@@ -424,6 +427,20 @@ function setRecordingStatus(text) {
   els.recordStatus.textContent = text;
 }
 
+function renderRecordingToggle(statusText) {
+  els.cameraButton.textContent = state.recordingEnabled ? "关闭录制" : "开启录制";
+  els.cameraButton.setAttribute("aria-pressed", String(state.recordingEnabled));
+  els.cameraButton.disabled = state.running;
+
+  if (state.recordingEnabled) {
+    els.cameraButton.classList.add("enabled");
+  } else {
+    els.cameraButton.classList.remove("enabled");
+  }
+
+  setRecordingStatus(statusText || (state.recordingEnabled ? "录制开启" : "录制关闭"));
+}
+
 function stopRecordingPlayback() {
   els.recordingPlayback.pause?.();
   els.recordingPlayback.currentTime = 0;
@@ -451,6 +468,12 @@ function stopMediaStream() {
   state.mediaStream = null;
   state.mediaStreamHasAudio = false;
   els.cameraPreview.srcObject = null;
+}
+
+function disableRecording() {
+  state.recordingEnabled = false;
+  stopMediaStream();
+  renderRecordingToggle("录制关闭");
 }
 
 function recordingExtensionForMimeType(mimeType) {
@@ -495,7 +518,6 @@ async function requestCamera(options = {}) {
     if (withAudio && !state.mediaStreamHasAudio) {
       stopMediaStream();
     } else {
-      setRecordingStatus("已开启");
       return state.mediaStream;
     }
   }
@@ -511,12 +533,30 @@ async function requestCamera(options = {}) {
     });
     state.mediaStreamHasAudio = withAudio;
     els.cameraPreview.srcObject = state.mediaStream;
-    setRecordingStatus("已开启");
     return state.mediaStream;
   } catch {
     setRecordingStatus("未授权");
     return null;
   }
+}
+
+async function toggleRecording() {
+  if (state.running) return;
+
+  if (state.recordingEnabled) {
+    disableRecording();
+    return;
+  }
+
+  const stream = await requestCamera({ withAudio: true });
+  if (!stream) {
+    state.recordingEnabled = false;
+    renderRecordingToggle("未授权");
+    return;
+  }
+
+  state.recordingEnabled = true;
+  renderRecordingToggle("录制开启");
 }
 
 async function uploadRecording(blob) {
@@ -602,6 +642,11 @@ function publishRecording() {
 async function startRecording() {
   clearRecordingUrl();
   state.recordedChunks = [];
+
+  if (!state.recordingEnabled) {
+    setRecordingStatus("未录制");
+    return;
+  }
 
   const stream = await requestCamera({ withAudio: true });
   if (!stream) return;
@@ -760,7 +805,7 @@ els.durationButtons.addEventListener("click", (event) => {
   const seconds = Number(event.target?.dataset?.duration);
   setDuration(seconds);
 });
-els.cameraButton.addEventListener("click", () => setRecordingStatus("开始时启用"));
+els.cameraButton.addEventListener("click", toggleRecording);
 els.setupStartButton.addEventListener("click", () => startRound());
 els.againButton.addEventListener("click", showSetupScreen);
 els.correctButton.addEventListener("click", () => registerAction("correct"));
@@ -780,4 +825,5 @@ populateCategorySelect();
 resetDeck();
 setDuration(state.durationSeconds);
 showSetupScreen();
+renderRecordingToggle();
 render();

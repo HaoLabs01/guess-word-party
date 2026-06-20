@@ -303,6 +303,11 @@ button {
   font-weight: 900;
 }
 
+.camera-button.enabled {
+  background: rgba(255, 231, 106, 0.92);
+  color: var(--ink);
+}
+
 .recordings-panel {
   min-height: 120px;
   border-radius: 8px;
