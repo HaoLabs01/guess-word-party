@@ -237,11 +237,14 @@ if (window.WORD_GROUPS?.length) {
 }
 
 const roundSeconds = 180;
-const nodThreshold = 28;
+const countdownStartSeconds = 5;
+const nodCandidateThreshold = 30;
+const nodThreshold = 42;
 const nodNeutralThreshold = 10;
-const orientationConfirmSamples = 2;
-const orientationConfirmWindow = 320;
-const verticalCalibrationThreshold = 45;
+const neutralConfirmSamples = 2;
+const orientationConfirmSamples = 3;
+const orientationConfirmWindow = 260;
+const rollRejectionThreshold = 35;
 const actionCooldown = 850;
 const keyboardActionCooldown = 160;
 const recordingChunkMilliseconds = 1000;
@@ -265,12 +268,13 @@ const state = {
   secondsLeft: roundSeconds,
   running: false,
   countingDown: false,
-  countdownValue: 3,
+  countdownValue: countdownStartSeconds,
   armed: true,
   orientationBaseline: null,
   pendingOrientationAction: null,
   pendingOrientationCount: 0,
   pendingOrientationAt: 0,
+  neutralSampleCount: 0,
   lastActionAt: 0,
   timerId: null,
   countdownTimerId: null,
@@ -855,7 +859,7 @@ async function beginPlayAfterCountdown() {
 }
 
 function startCountdown() {
-  state.countdownValue = 3;
+  state.countdownValue = countdownStartSeconds;
   state.countingDown = true;
   renderCountdown();
   state.countdownTimerId = window.setInterval(() => {
@@ -893,8 +897,7 @@ async function startRound() {
   state.running = true;
   state.countingDown = true;
   state.armed = true;
-  state.orientationBaseline = null;
-  clearPendingOrientationAction();
+  resetOrientationTracking();
   state.lastActionAt = 0;
   showGameScreen();
   resetDeck();
@@ -909,7 +912,7 @@ function finishRound(statusText = "结束") {
   state.running = false;
   state.countingDown = false;
   state.secondsLeft = 0;
-  clearPendingOrientationAction();
+  resetOrientationTracking();
   hideCountdown();
   const stoppedActiveRecording = stopRecording();
   if (!stoppedActiveRecording) {
@@ -942,6 +945,16 @@ function restartApp() {
   }
 }
 
+function vibrateActionFeedback(type) {
+  if (typeof navigator.vibrate !== "function") return;
+
+  if (type === "correct") {
+    navigator.vibrate(70);
+  } else {
+    navigator.vibrate([35, 55, 35]);
+  }
+}
+
 function registerAction(type, cooldown = actionCooldown) {
   if (!state.running || state.countingDown) return;
 
@@ -952,12 +965,13 @@ function registerAction(type, cooldown = actionCooldown) {
   if (type === "correct") {
     state.score += 1;
     state.streak += 1;
-    setStatus("+1", "correct");
+    setStatus("猜对 +1", "correct");
   } else {
     state.streak = 0;
     setStatus("跳过", "skip");
   }
 
+  vibrateActionFeedback(type);
   nextWord();
   render();
 }
@@ -972,6 +986,12 @@ function clearPendingOrientationAction() {
   state.pendingOrientationAction = null;
   state.pendingOrientationCount = 0;
   state.pendingOrientationAt = 0;
+}
+
+function resetOrientationTracking() {
+  state.orientationBaseline = null;
+  state.neutralSampleCount = 0;
+  clearPendingOrientationAction();
 }
 
 function confirmOrientationAction(action) {
@@ -991,61 +1011,77 @@ function confirmOrientationAction(action) {
   return state.pendingOrientationCount >= orientationConfirmSamples;
 }
 
-function orientationActionForEvent(event) {
-  if (typeof event.beta !== "number") return null;
+function orientationSignalForEvent(event) {
+  if (typeof event.beta !== "number") return { kind: "invalid" };
+  if (typeof event.gamma === "number" && Math.abs(event.gamma) > rollRejectionThreshold) {
+    return { kind: "invalid" };
+  }
 
   const beta = event.beta;
   if (!state.orientationBaseline) {
-    if (Math.abs(beta) < verticalCalibrationThreshold) {
-      return null;
-    }
-
     state.orientationBaseline = { beta };
-    return "neutral";
+    state.neutralSampleCount = neutralConfirmSamples;
+    setStatus("已校准", null);
+    return { kind: "neutral" };
   }
 
   const betaDelta = normalizeAngleDelta(beta - state.orientationBaseline.beta);
   if (Math.abs(betaDelta) < nodNeutralThreshold) {
-    return "neutral";
+    return { kind: "neutral" };
   }
 
-  if (betaDelta >= nodThreshold) {
-    return "correct";
+  if (Math.abs(betaDelta) < nodCandidateThreshold) {
+    return { kind: "weak" };
   }
 
-  if (betaDelta <= -nodThreshold) {
-    return "skip";
-  }
-
-  return null;
+  const action = betaDelta > 0 ? "correct" : "skip";
+  return {
+    kind: "action",
+    action,
+    strong: Math.abs(betaDelta) >= nodThreshold,
+  };
 }
 
 function handleOrientation(event) {
   if (!state.running || state.countingDown) return;
 
-  const action = orientationActionForEvent(event);
-  if (action === "neutral") {
-    state.armed = true;
+  const signal = orientationSignalForEvent(event);
+  if (signal.kind === "neutral") {
+    state.neutralSampleCount += 1;
+    clearPendingOrientationAction();
+    if (!state.armed && state.neutralSampleCount >= neutralConfirmSamples) {
+      state.armed = true;
+      setStatus("已回正", null);
+    }
+    return;
+  }
+
+  if (signal.kind === "invalid" || signal.kind === "weak") {
+    state.neutralSampleCount = 0;
     clearPendingOrientationAction();
     return;
   }
 
+  state.neutralSampleCount = 0;
   if (!state.armed) {
     return;
   }
 
-  if (!action) {
+  if (!signal.strong) {
     clearPendingOrientationAction();
+    setStatus(signal.action === "correct" ? "继续点头" : "继续抬头", null);
     return;
   }
 
-  if (!confirmOrientationAction(action)) {
+  setStatus(signal.action === "correct" ? "保持点头" : "保持抬头", null);
+  if (!confirmOrientationAction(signal.action)) {
     return;
   }
 
   state.armed = false;
+  state.neutralSampleCount = 0;
   clearPendingOrientationAction();
-  registerAction(action);
+  registerAction(signal.action);
 }
 
 async function handleKeyboard(event) {

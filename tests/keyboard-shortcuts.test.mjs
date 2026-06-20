@@ -146,6 +146,7 @@ let lastUpload = null;
 let stoppedTracks = 0;
 let motionPermissionRequests = 0;
 let locationReplaceTarget = null;
+const vibrationCalls = [];
 let nextTimerId = 1;
 const intervals = new Map();
 
@@ -163,6 +164,10 @@ function runLatestInterval() {
 }
 
 async function finishCountdown() {
+  runLatestInterval();
+  assert.equal(elements.get("#countdownNumber").textContent, "4", "countdown advances to 4");
+  runLatestInterval();
+  assert.equal(elements.get("#countdownNumber").textContent, "3", "countdown advances to 3");
   runLatestInterval();
   assert.equal(elements.get("#countdownNumber").textContent, "2", "countdown advances to 2");
   runLatestInterval();
@@ -229,6 +234,10 @@ const context = {
     },
   },
   navigator: {
+    vibrate(pattern) {
+      vibrationCalls.push(pattern);
+      return true;
+    },
     mediaDevices: {
       async getUserMedia(constraints) {
         lastMediaRequest = constraints;
@@ -301,6 +310,7 @@ assert.match(html, /id="motionButton"/, "renders a motion permission button");
 assert.match(html, /id="motionStatus"/, "shows motion permission status");
 assert.match(html, /id="countdownOverlay"/, "renders a pre-round countdown overlay");
 assert.match(html, /id="countdownNumber"/, "renders a pre-round countdown number");
+assert.match(html, /id="countdownNumber">5<\/span>/, "pre-round countdown starts at 5");
 assert.doesNotMatch(html, /camera-preview-frame/, "does not reserve a boxed camera preview on the setup page");
 assert.match(html, /录制视频/, "recording toggle is labeled as video recording");
 assert.match(html, /role="switch"/, "recording toggle uses switch semantics");
@@ -332,6 +342,9 @@ assert.doesNotMatch(wordsSource, /TARGET_WORDS_PER_CATEGORY/, "word bank does no
 assert.doesNotMatch(wordsSource, /草原犀牛|热带金丝猴|动物园熊猫/, "word bank excludes forced fake combinations");
 
 assert.match(appSource, /durationSeconds:\s*180/, "default round length is 180 seconds");
+assert.match(appSource, /countdownStartSeconds\s*=\s*5/, "countdown starts from 5 seconds");
+assert.match(appSource, /nodThreshold\s*=\s*42/, "motion gesture requires a clear peak angle");
+assert.match(appSource, /orientationConfirmSamples\s*=\s*3/, "motion gesture requires three strong samples");
 assert.match(appSource, /facingMode:\s*"user"/, "requests the front-facing camera");
 assert.match(appSource, /audio:\s*withAudio/, "requests microphone audio only when starting a recording");
 assert.match(appSource, /fetch\("\/recordings"/, "uploads recordings to the local project server");
@@ -412,7 +425,7 @@ assert.equal(elements.get("#setupScreen").classList.contains("hidden"), true, "s
 assert.equal(elements.get("#gameScreen").classList.contains("hidden"), false, "game screen appears after starting");
 assert.equal(elements.get("#timer").textContent, 300, "selected duration is used for the round");
 assert.equal(elements.get("#countdownOverlay").classList.contains("hidden"), false, "Space shows the countdown before the first word");
-assert.equal(elements.get("#countdownNumber").textContent, "3", "countdown starts at 3");
+assert.equal(elements.get("#countdownNumber").textContent, "5", "countdown starts at 5");
 assert.equal(elements.get("#cameraBackdrop").classList.contains("active"), true, "fullscreen preview stays visible during countdown");
 assert.equal(lastMediaRequest.audio, true, "Space requests microphone audio");
 assert.equal(lastMediaRequest.video.facingMode, "user", "Space requests the front camera");
@@ -438,30 +451,58 @@ assert.equal(elements.get("#recordStatus").textContent, "录制中", "recording 
 assert.equal(elements.get("#cameraBackdrop").classList.contains("active"), true, "fullscreen preview stays visible while recording during play");
 
 windowListeners.deviceorientation?.({ beta: 90 });
+now += 80;
+windowListeners.deviceorientation?.({ beta: 132 });
+now += 80;
+windowListeners.deviceorientation?.({ beta: 90 });
+now += 80;
+windowListeners.deviceorientation?.({ beta: 48 });
+now += 80;
+windowListeners.deviceorientation?.({ beta: 90 });
+assert.equal(elements.get("#score").textContent, 0, "rapid forward/back pitch does not trigger an action");
+
+now += 80;
 windowListeners.deviceorientation?.({ beta: 112 });
 assert.equal(elements.get("#score").textContent, 0, "small forehead movement does not trigger a correct guess");
-windowListeners.deviceorientation?.({ beta: 122 });
+now += 80;
+windowListeners.deviceorientation?.({ beta: 132 });
 assert.equal(elements.get("#score").textContent, 0, "first strong nod sample only confirms intent");
-windowListeners.deviceorientation?.({ beta: 123 });
+assert.equal(elements.get("#statusChip").textContent, "保持点头", "strong nod candidate asks the holder to hold the movement");
+now += 80;
+windowListeners.deviceorientation?.({ beta: 133 });
+assert.equal(elements.get("#score").textContent, 0, "second strong nod sample still only confirms intent");
+now += 80;
+windowListeners.deviceorientation?.({ beta: 134 });
 assert.equal(elements.get("#score").textContent, 1, "nodding down from the forehead baseline marks a correct guess");
 assert.equal(elements.get("#streak").textContent, 1, "nodding down from the forehead baseline increments the streak");
-assert.equal(elements.get("#statusChip").textContent, "+1", "nodding down from the forehead baseline shows correct feedback");
+assert.equal(elements.get("#statusChip").textContent, "猜对 +1", "nodding down from the forehead baseline shows clear correct feedback");
+assert.deepEqual(vibrationCalls.at(-1), 70, "correct guess gives tactile feedback when supported");
 now += 1_000;
 windowListeners.deviceorientation?.({ beta: 90 });
+windowListeners.deviceorientation?.({ beta: 90 });
+assert.equal(elements.get("#statusChip").textContent, "已回正", "returning to neutral clearly re-arms the gesture detector");
 
-windowListeners.deviceorientation?.({ beta: 58 });
+now += 80;
+windowListeners.deviceorientation?.({ beta: 48 });
 assert.equal(elements.get("#score").textContent, 1, "first strong lift sample only confirms intent");
-windowListeners.deviceorientation?.({ beta: 57 });
+assert.equal(elements.get("#statusChip").textContent, "保持抬头", "strong lift candidate asks the holder to hold the movement");
+now += 80;
+windowListeners.deviceorientation?.({ beta: 47 });
+assert.equal(elements.get("#score").textContent, 1, "second strong lift sample still only confirms intent");
+now += 80;
+windowListeners.deviceorientation?.({ beta: 46 });
 assert.equal(elements.get("#score").textContent, 1, "lifting the head from the forehead baseline skips instead of scoring");
 assert.equal(elements.get("#streak").textContent, 0, "lifting the head keeps streak at zero");
 assert.equal(elements.get("#statusChip").textContent, "跳过", "lifting the head shows skip feedback");
+assert.equal(JSON.stringify(vibrationCalls.at(-1)), JSON.stringify([35, 55, 35]), "skip gives distinct tactile feedback when supported");
 now += 1_000;
+windowListeners.deviceorientation?.({ beta: 90 });
 windowListeners.deviceorientation?.({ beta: 90 });
 
 assert.equal(await press("ArrowDown"), true, "prevents page movement for correct shortcut");
 assert.equal(elements.get("#score").textContent, 2, "ArrowDown marks a correct guess");
 assert.equal(elements.get("#streak").textContent, 1, "ArrowDown increments the streak after a skip");
-assert.equal(elements.get("#statusChip").textContent, "+1", "ArrowDown shows correct feedback");
+assert.equal(elements.get("#statusChip").textContent, "猜对 +1", "ArrowDown shows correct feedback");
 
 now += 1_000;
 
@@ -515,9 +556,24 @@ assert.equal(elements.get("#cameraBackdrop").classList.contains("active"), false
 assert.equal(await press(" "), true, "Space starts a no-recording round");
 assert.equal(lastMediaRequest, null, "disabled recording does not request camera permission on start");
 assert.equal(lastRecorder, null, "disabled recording does not create a recorder");
-assert.equal(elements.get("#countdownNumber").textContent, "3", "no-recording round still starts with countdown");
+assert.equal(elements.get("#countdownNumber").textContent, "5", "no-recording round still starts with countdown");
 await finishCountdown();
 assert.equal(elements.get("#recordStatus").textContent, "未录制", "disabled recording shows no recording status");
+windowListeners.deviceorientation?.({ beta: 115 });
+now += 80;
+windowListeners.deviceorientation?.({ beta: 148 });
+now += 80;
+windowListeners.deviceorientation?.({ beta: 149 });
+now += 80;
+windowListeners.deviceorientation?.({ beta: 147 });
+assert.equal(elements.get("#score").textContent, 0, "skewed neutral position does not make ordinary wobble easier to trigger");
+now += 80;
+windowListeners.deviceorientation?.({ beta: 158 });
+now += 80;
+windowListeners.deviceorientation?.({ beta: 159 });
+now += 80;
+windowListeners.deviceorientation?.({ beta: 160 });
+assert.equal(elements.get("#score").textContent, 1, "skewed neutral position can still trigger a deliberate strong nod");
 assert.equal(await press("Escape"), true, "Escape stops the no-recording round");
 assert.equal(lastUpload, null, "disabled recording does not upload anything");
 
